@@ -1,0 +1,35 @@
+NEWINPUT
+
+tdse{
+tightbinding BoronNitride                    
+dt  0.1 au               
+t_fin 60 fs
+}
+
+nkPT{
+1 250 250
+}
+
+decoherence{
+corehole 0.00396892 au
+}
+
+laserpump sin2  {
+cycles 3    
+wavelength 400 nm
+intensity 1.e+11 wcm2
+polarization 0 0 1                 
+}
+
+laserprobe gaussian {
+sigma 0.08 fs
+delay 0.0 fs
+intensity 10.e+09
+frequency 10.892178
+polarization 1 0 0
+}
+
+observables{                         
+TAbs
+Current
+}

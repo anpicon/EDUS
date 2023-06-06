@@ -17,7 +17,7 @@ double dP_ik_ic_jc;
 
 #pragma omp master
 {
-    it=iti - 10;
+    it= 0;//iti - 10;
     time_loop = -0.21 / time_au_fs;// it*dt;
     n_cond = epsA; 
 }
@@ -42,8 +42,7 @@ while(time_loop < t_fin){
             
             MPI_Reduce(&P_cond_max_loc_mpi, &P_cond_max, 1, MPI_DOUBLE, MPI_MAX, root_rank, MPI_COMM_WORLD);    
             MPI_Bcast(& P_cond_max, 1, MPI_DOUBLE, root_rank, MPI_COMM_WORLD);
-            cout <<  " P_cond_max " << P_cond_max << endl;
-            cout <<  " n_cond " << n_cond << endl;
+            
         }
     
     } // end if it_resolution
@@ -71,12 +70,13 @@ while(time_loop < t_fin){
     }
     
     for (int ik = OMP_private.begin_count; ik < OMP_private.end_count; ik++){ // all local wave vectors
-
-        dP_ik_ic_jc = \
-        3* abs(OMP_private.P_W_prev[ik - OMP_private.begin_count][Ncv-1][Ncv-1] - P0[ik][Ncv-1][Ncv-1]  )/(P_cond_max + n_cond + abs(P0[ik][Ncv-1][Ncv-1]));  // !!!!! avoid dividing by zero!
-        
-        if (dP_ik_ic_jc > loc_max_dP){
-            loc_max_dP = dP_ik_ic_jc;
+        for(int ic=0; ic<Ncv; ic++){
+            dP_ik_ic_jc = \
+            2* abs(OMP_private.P_W_prev[ik - OMP_private.begin_count][ic][ic] - P0[ik][ic][ic]  )/(P_cond_max + n_cond + abs(P0[ik][ic][ic]) +1.0e-7);  // !!!!! avoid dividing by zero!
+            
+            if (dP_ik_ic_jc > loc_max_dP){
+                loc_max_dP = dP_ik_ic_jc;
+            }
         }
 
     }
@@ -101,12 +101,12 @@ while(time_loop < t_fin){
         if (rank_ == root_rank){
             max_dP = reduction_result;
 
-            if((max_dP >  1.2*epsStepAbs) and (rank_ == root_rank)){
+            if((max_dP >  1.01*epsStepAbs) and (rank_ == root_rank)){
                 cout  << "!!!!!!!! dt too large "  << " max_dP = " << max_dP  << " dtDynamic: " << dt  << " a.u. or " << dt * time_au_fs*1000 << " as" << endl;
 
             }
 
-            if ((max_dP >  epsStepAbs) and (dt > 0.001)){
+            if ((max_dP >  epsStepAbs) and (dt > 0.01)){
                     dt *= epsStepAbs/ max_dP;
                     // cout  << "! New dt_scaled: " << dt << " epsStepAbs = " << epsStep <<"  max_dP = " << max_dP <<  " time fs: " << time_loop *time_au_fs << endl;
 
@@ -118,6 +118,7 @@ while(time_loop < t_fin){
                 }
             }
         } // if (rank_ == root_rank)
+        MPI_Barrier(MPI_COMM_WORLD);
         MPI_Bcast(& dt, 1, MPI_DOUBLE, root_rank, MPI_COMM_WORLD);
         if(Diff_Eq.Taylor){
             for (int idt = (TaylorOrder-1); idt > 0; idt--){
@@ -142,10 +143,12 @@ while(time_loop < t_fin){
     #pragma omp barrier // sinchronise threads
     #pragma omp master
     {
-        if ((rank_ == root_rank) and it % (it_resolution) == 0){
+        if ((rank_ == root_rank) and it % (10*it_resolution) == 0){
             cout  << " dtDynamic: " << dt  << " a.u. or ";
             cout  << dt * time_au_fs*1000 << " as  |||";
             cout  << " max_dP = " << max_dP << " epsStep =" << epsStepAbs  <<  " time_loop fs: " << time_loop *time_au_fs <<   endl;
+            cout <<  " P_cond_max " << P_cond_max << endl;
+            cout <<  " n_cond " << n_cond << endl;
         }
 
 

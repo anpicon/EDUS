@@ -105,10 +105,10 @@ void PrintEF(ofstream& fp_E, double& time, vector<vec1d>& EF)
 
 
 
-
+//det_a - determinant UC area
 void Current1(ofstream& fp_J1, Private_omp_parameters& OMP_private,
     vec3x& P,vec4x& GradientEnergy,double& time, vec1d& dk,
-    int& nktot,double Detj, vec1x& I)
+    int& nktot,double det_a, vec1x& I)
 {
     #pragma omp master
     {
@@ -135,7 +135,7 @@ void Current1(ofstream& fp_J1, Private_omp_parameters& OMP_private,
     #pragma omp master
     {
         for (int ix=0; ix<3; ix++)
-            I[ix] *= Detj*dk[0]*dk[1]*dk[2];
+            I[ix] *= (dk[0]*dk[1]*dk[2]/det_a);
         
         vec1x global_sum(3);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -158,7 +158,7 @@ void Current1(ofstream& fp_J1, Private_omp_parameters& OMP_private,
 
 void Current2(ofstream& fp_J2, Private_omp_parameters& OMP_private,
     vec3x& P,vec4x& Dipole,vec3x& Hamiltonian,
-    double& time, vec1d& dk,int& nktot,double Detj, vec1x& I)
+    double& time, vec1d& dk,int& nktot,double det_a, vec1x& I)
 {
     #pragma omp master
     {
@@ -185,7 +185,7 @@ void Current2(ofstream& fp_J2, Private_omp_parameters& OMP_private,
     #pragma omp master
     {
         for (int ix=0; ix<3; ix++)
-            I[ix] *= Detj*dk[0]*dk[1]*dk[2];
+            I[ix] *= (dk[0]*dk[1]*dk[2]/det_a);
         
         vec1x global_sum(3);
         MPI_Reduce(&I[0], &global_sum[0], 3, MPI_C_DOUBLE_COMPLEX, MPI_SUM, 0,
@@ -204,7 +204,7 @@ void Current2(ofstream& fp_J2, Private_omp_parameters& OMP_private,
 }
 
 
-void CalculateCurrent1(vec3x& P,vec4x& GradientEnergy,vec1d& dk,int& nk,double Detj, vec1x& I)
+void CalculateCurrent1(vec3x& P,vec4x& GradientEnergy,vec1d& dk,int& nk,double det_a, vec1x& I)
 {
     I.fill(0.);
     for(int ik=0; ik<nk; ik++)
@@ -214,11 +214,11 @@ void CalculateCurrent1(vec3x& P,vec4x& GradientEnergy,vec1d& dk,int& nk,double D
                     I[ix]+=P[ik][ic][jc]*GradientEnergy[ik][ic][jc][ix];
 
     for (int ix=0; ix<3; ix++)
-        I[ix] *= Detj*dk[0]*dk[1]*dk[2];
+        I[ix] *= (dk[0]*dk[1]*dk[2]/det_a);
 }
 
 
-void CalculateCurrent2(vec3x& P,vec4x& Dipole,vec3x& Hamiltonian,vec1d& dk,int& nk,double Detj, vec1x& I)
+void CalculateCurrent2(vec3x& P,vec4x& Dipole,vec3x& Hamiltonian,vec1d& dk,int& nk,double det_a, vec1x& I)
 {
     I.fill(0.);
     for(int ik=0; ik<nk; ik++)
@@ -228,15 +228,15 @@ void CalculateCurrent2(vec3x& P,vec4x& Dipole,vec3x& Hamiltonian,vec1d& dk,int& 
                     for (int ix=0; ix<3; ix++) 
                         I[ix] += P[ik][ic][jc]*Hamiltonian[ik][ic][kc]*conj(Dipole[ik][jc][kc][ix]);
     for(int ix=0; ix<3; ix++)
-        I[ix] *= Detj*dk[0]*dk[1]*dk[2];
+        I[ix] *= (dk[0]*dk[1]*dk[2]/det_a);
 }
 
 
 
-void PrintCurrent(ofstream& fp_J1, ofstream& fp_J2, double time,vec3x& P,vec4x& GradientEnergy,vec4x& Dipole,vec3x& Hamiltonian,vec1d& dk,int& nk, double Detj)
+void PrintCurrent(ofstream& fp_J1, ofstream& fp_J2, double time,vec3x& P,vec4x& GradientEnergy,vec4x& Dipole,vec3x& Hamiltonian,vec1d& dk,int& nk, double det_a)
 {
     vec1x I1(3); 
-    CalculateCurrent1(P,GradientEnergy,dk,nk,Detj,I1);
+    CalculateCurrent1(P,GradientEnergy,dk,nk,det_a,I1);
     fp_J1 << setw(15) << setprecision(8) << time*time_au_fs;
     for(int ix=0; ix<3; ix++) 
     {
@@ -246,7 +246,7 @@ void PrintCurrent(ofstream& fp_J1, ofstream& fp_J2, double time,vec3x& P,vec4x& 
     fp_J1 << endl;
     
     vec1x I2(3);
-    CalculateCurrent2(P,Dipole,Hamiltonian,dk,nk,Detj,I2);
+    CalculateCurrent2(P,Dipole,Hamiltonian,dk,nk,det_a,I2);
     fp_J2 << setw(15) << setprecision(8) << time*time_au_fs;
     for(int ix=0; ix<3; ix++) 
         fp_J2 << setw(25) << setprecision(15) << scientific << -2*I2[ix].imag();   

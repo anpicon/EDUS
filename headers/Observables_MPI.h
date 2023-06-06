@@ -153,7 +153,7 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
     int root_rank, int my_rank, bool print_EK, double &  n_cond, 
     double &  P_cond_max_loc_mpi)
 {
-    double abs_EF = abs(EF[0][0]) + abs(EF[0][1])  + abs(EF[0][2] );
+
     vec1d N_dia(Ncv);
     vec1d P_k_dia(Ncv);
     vec1d P_k_offdia(Ncv);
@@ -165,11 +165,6 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
     P_k_dia.fill(0);
     P_k_offdia.fill(0);
 
-    int k_local;
-    double eps_transf =0.000000000001;
-    // double Emax = sqrt(EF[0][0]*EF[0][0] + EF[0][1]*EF[0][1] + EF[0][2]*EF[0][2]); // electric field modulus
-    // double E_eps = 1e-12; // we suppose it's zero electric field
-
 
     // No need to integrate with good precision here
     double nktot = Coulomb_set.N_BZ_points_total;
@@ -178,12 +173,14 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
 
     int ik; // position in shared variable
     double P_cond_max_loc_omp = 0.0;
-
+    double P_cond_min_loc_omp = 1.0;
+    #pragma omp barrier
     #pragma omp master
     {
         P_cond_max_loc_mpi = 0.0;
+        Coulomb_set.P_min = 1.0;
     }
-    
+    #pragma omp barrier
     // Now we have Hk and diagonalize it with armadillo
     // we don't need much precision or control phases here
 
@@ -233,17 +230,9 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
         get_P_in_dia_vect(P0, Uk_exc, OMP_private.P_eigen, Ncv,  
             ik, ik_U, OMP_private);
 
-        // int ik_U = 0;
-        // get_P_in_dia_vect(P0, OMP_private.Uk, OMP_private.P_eigen, Ncv,  
-        //     ik, ik_pr, OMP_private);
-
-
-        // get_P_in_dia(P0, Uk_exc, OMP_private.P_eigen, 
-        // Ncv, ik, ik_U);
-
-        P_k_offdia[Ncv-1] += abs(OMP_private.P_eigen[ik][Ncv-1][Ncv-2]); // valence - conduction exciton
-        if (Ncv>2) P_k_offdia[Ncv-2] += abs(OMP_private.P_eigen[ik][Ncv-2][Ncv-3]); // core - valence
-        if (Ncv>2) P_k_offdia[Ncv-3] += abs(OMP_private.P_eigen[ik][Ncv-1][Ncv-3]); // core- conduction
+        // P_k_offdia[Ncv-1] += abs(OMP_private.P_eigen[ik][Ncv-1][Ncv-2]); // valence - conduction exciton
+        // if (Ncv>2) P_k_offdia[Ncv-2] += abs(OMP_private.P_eigen[ik][Ncv-2][Ncv-3]); // core - valence
+        // if (Ncv>2) P_k_offdia[Ncv-3] += abs(OMP_private.P_eigen[ik][Ncv-1][Ncv-3]); // core- conduction
 
         for (int ic=0; ic < Ncv; ic++){
             double Pik = real(OMP_private.P_eigen[ik][ic][ic]); 
@@ -252,10 +241,22 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
             P_k_dia[ic] += Pik;
 
 
-            if (ic == (Ncv-1) and abs(Pik) > P_cond_max_loc_omp){
-                P_cond_max_loc_omp = abs(Pik);
+            if (ic < Ncc){
+                if(abs(1.-Pik) > P_cond_max_loc_omp){
+                    P_cond_max_loc_omp = abs(1.-Pik);
+                }
+                if((1.-Pik) < P_cond_min_loc_omp){
+                    P_cond_min_loc_omp = 1.-Pik;
+                }
+            } else {
+                if (abs(Pik) > P_cond_max_loc_omp){
+                    P_cond_max_loc_omp = abs(Pik);
+                }
+                if(Pik < P_cond_min_loc_omp){
+                    P_cond_min_loc_omp = Pik;
+                }
             }
-            
+                
             // if(Pik < -pow(10, -15) or Pik > (1 + pow(10, -15)) ){
             //  //   cout << "P diag= "<< Pik <<" band" << ic << " ik="<< ik << endl;
             // }
@@ -272,14 +273,17 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
     #pragma omp barrier
 
     #pragma omp critical
-    { // summation over threads
+    { // summation over threads and finding minimum over OpenMP threads
         if (P_cond_max_loc_mpi < P_cond_max_loc_omp){
             P_cond_max_loc_mpi = P_cond_max_loc_omp;
         }
+        if (Coulomb_set.P_min > P_cond_min_loc_omp){
+            Coulomb_set.P_min = P_cond_min_loc_omp;
+        }
         
-        Coulomb_set.N_exciton[Ncv-1] += P_k_offdia[Ncv-1]/nktot;
-        if (Ncv>2) Coulomb_set.N_exciton[Ncv-2] += P_k_offdia[Ncv-2]/nktot;
-        if (Ncv>2) Coulomb_set.N_exciton[Ncv-3] += P_k_offdia[Ncv-2]/nktot;
+        // Coulomb_set.N_exciton[Ncv-1] += P_k_offdia[Ncv-1]/nktot;
+        // if (Ncv>2) Coulomb_set.N_exciton[Ncv-2] += P_k_offdia[Ncv-2]/nktot;
+        // if (Ncv>2) Coulomb_set.N_exciton[Ncv-3] += P_k_offdia[Ncv-2]/nktot;
         for (int ic=0; ic < Ncv; ic++){
             Coulomb_set.N_shared[ic] += P_k_dia[ic]/nktot;
         }
@@ -293,28 +297,51 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
         vec1d P_k_dia_global(Ncv);
         vec1d P_k_offdia_global(Ncv);
 
+        double P_min_MPI;
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Reduce(&Coulomb_set.P_min, &P_min_MPI, 1, MPI_DOUBLE, MPI_MIN, root_rank,
+               MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+        if ((P_min_MPI < -1e-13) and (rank_ == root_rank))
+        {
+            cout << "Negative population, P_min = " << P_min_MPI << endl;
+        }
+        
+        MPI_Barrier(MPI_COMM_WORLD);
         MPI_Reduce(&Coulomb_set.N_shared[0], &P_k_dia_global[0], Ncv, MPI_DOUBLE, MPI_SUM, root_rank,
                MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
 
-        MPI_Reduce(&Coulomb_set.N_exciton[0], &P_k_offdia_global[0], Ncv, MPI_DOUBLE, MPI_SUM, root_rank,
-               MPI_COMM_WORLD);
-
+        // MPI_Reduce(&Coulomb_set.N_exciton[0], &P_k_offdia_global[0], Ncv, MPI_DOUBLE, MPI_SUM, root_rank,
+               // MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
 
         if(rank_==root_rank)
         {
-            double P_trace = 0.0;
+            double P_trace = -Ncc;
+            
             fp_Loss << setprecision(16) << time*time_au_fs << "   ";
             for(int ic=0; ic<Ncv; ic++){
                 P_trace += P_k_dia_global[ic];
-                Coulomb_set.exciton_file << setprecision(16) << P_k_offdia_global[ic]<< "   ";
+                // Coulomb_set.exciton_file << setprecision(16) << P_k_offdia_global[ic]<< "   ";
                 if (ic < Ncc) P_k_dia_global[ic] = 1.0 - P_k_dia_global[ic]; 
 
                 fp_Loss  << setprecision(16) <<P_k_dia_global[ic] << "   ";
             } 
             fp_Loss << endl;
             Coulomb_set.exciton_file << endl;
-            // fp_Loss << (Ncv-1) - P_trace << endl;
-            n_cond = P_k_dia_global[Ncv-1];    
+            if (abs(P_trace) > 1e-13){ 
+                cout << "Preservation of particle num fail P_trace = " << P_trace << endl;
+            }
+            
+
+            n_cond = 0; // population of conduction we will call the maxim population on band
+            
+            for(int ic=0; ic<Ncv; ic++){
+                if (P_k_dia_global[ic] > n_cond){
+                    n_cond = P_k_dia_global[ic];
+                }      
+            } 
         }
 
 

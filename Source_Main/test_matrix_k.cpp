@@ -1,14 +1,16 @@
+vec2x H(Ncv,Ncv);
+vec2x U(Ncv, Ncv);
+//vec2d E(Ncv, Ncv);
+vec3x DD(Ncv,Ncv,3);//vec2x dx(Ncv,Ncv); //vec2x dy(Ncv,Ncv); //vec2x dz(Ncv,Ncv);
+Coord_B kkk;
+ofstream Test;
 
-
+if (rank_ == root_rank){
     printf("Printing test matrices for check...\n");
-    vec2x H(Ncv,Ncv);
-    vec2x U(Ncv, Ncv);
-    //vec2d E(Ncv, Ncv);
-    vec3x DD(Ncv,Ncv,3);//vec2x dx(Ncv,Ncv); //vec2x dy(Ncv,Ncv); //vec2x dz(Ncv,Ncv);
-    Coord_B kkk;
+    
     kkk.setcrys(0,0.3,0.1);
     gHUD(H,U,DD,kkk,iMode);
-    ofstream Test;
+    
     Test.open("Test_matrices.txt");
 
     Test << "k = " << kkk.crys[0] << " " << kkk.crys[1] << " " << kkk.crys[2] << endl;
@@ -28,16 +30,16 @@
         Test << "\n";
     }
     Test << "\n";
-/*
-    Test << "Energy_bloch: \n";
-    for(int ic=0; ic<Ncv; ic++)
-    {
-        for(int jc=0; jc<Ncv; jc++)
-            Test << E[ic][jc] << " ";
+    /*
+        Test << "Energy_bloch: \n";
+        for(int ic=0; ic<Ncv; ic++)
+        {
+            for(int jc=0; jc<Ncv; jc++)
+                Test << E[ic][jc] << " ";
+            Test << "\n";
+        }
         Test << "\n";
-    }
-    Test << "\n";
- */
+     */
     Test << "U E_W U_dagger (to compare with eq. 104 in notes).\n";
     vec2x E2(Ncv,Ncv);  
     for(int ic=0; ic<Ncv; ic++)
@@ -51,6 +53,24 @@
                     E2[ic][jc] += U[ic][mc]*H[mc][nc]*conj(U[jc][nc]);
 
             Test << E2[ic][jc] << " ";
+        }
+        Test << "\n";
+    }
+    Test << "U  U_dagger (should be 1).\n";
+    for(int ic=0; ic<Ncv; ic++) {
+        for(int jc=0; jc<Ncv; jc++) {
+            E2[ic][jc] = 0.;
+            
+            for(int mc = 0; mc < Ncv; mc++)
+                E2[ic][jc] += U[ic][mc]*conj(U[jc][mc]);
+
+            Test << E2[ic][jc] << " ";
+            if (abs(E2[ic][jc])> 1e-10 and ic != jc ){
+                Test << "ERROR" << " ";
+            } 
+            if (abs(E2[ic][jc] - 1.)> 1e-10 and ic == jc ){
+                Test << "ERROR" << " ";
+            }
         }
         Test << "\n";
     }
@@ -79,7 +99,16 @@
             Test << DD[ic][jc][2] << " ";
         Test << "\n";
     }
-    Test << "\n";    Test.close();
+    Test << "\n";    
+    Test.close();
+}
+
+MPI_Barrier(MPI_COMM_WORLD);
+
+
+
+
+
 /*
 cout << "fermi energy" <<  endl;
 Coord_B kkk;

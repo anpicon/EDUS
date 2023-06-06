@@ -55,10 +55,26 @@ else {
     exit(1);
     }
 
+double det_b, det_a;
+
+if (Nk[2] < Nk[1]) Coulomb_set.Sample_orientation = "110"; 
+
+if (Coulomb_set.Sample_orientation == "011"){ // sample yz
+    det_b = abs(b[1][1]*b[2][2] - b[1][2]*b[2][1]); // determinant in plane for volume
+    det_a = abs(a[1][1]*a[2][2] - a[1][2]*a[2][1]); // determinant in plane for volume
+} else if (Coulomb_set.Sample_orientation == "110"){ // sample in xy
+    det_b = abs(b[0][0]*b[1][1] - b[0][1]*b[1][0]); // determinant in plane for volume
+    det_a = abs(a[0][0]*a[1][1] - a[0][1]*a[1][0]); // determinant in plane for volume
+}
 
 
-
-
+if (rank_ == 0){
+    cout << "____________________________" << endl;
+    cout << "unit cell area = " << det_a   << endl;
+    cout << "Sample orientation = " << Coulomb_set.Sample_orientation   << endl;
+    cout << "____________________________" << endl;
+}
+// exit(1);
 
 CalculateWeigths_new(kpt, Weigths, Bvector, Nk);
 //CalculateWeigths(kpt, Weigths, Bvector, Nk);
@@ -97,58 +113,22 @@ Coulomb_set.N_shared.resize(Ncv);
 Coulomb_set.N_exciton.resize(Ncv); 
 
 
-if (Coulomb_set.Coulomb_calc){   
-    
-    Ncut = Coulomb_set.Ncut;
-    Coulomb_set.A.resize(Ncut*Ncut); // !!!! allocate memory for coefficients
-    Coulomb_set.D.resize(Ncut*Ncut); // !!!! allocate memory for coefficients
-    Coulomb_set.X_cc.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_sc.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_cs.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_ss.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_cc0.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_sc0.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_cs0.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_ss0.resize(Ncut*Ncut*Ncv*Ncv);
-    Coulomb_set.X_ss0.fill(0.);
-    Coulomb_set.X_cc0.fill(0.);
-    Coulomb_set.X_sc0.fill(0.);
-    Coulomb_set.X_cs0.fill(0.);
-    Coulomb_set.f_cc.resize(Ncv*Ncv);
-    Coulomb_set.f_sc.resize(Ncv*Ncv);
-    Coulomb_set.f_cs.resize(Ncv*Ncv);
-    Coulomb_set.f_ss.resize(Ncv*Ncv);
-    Coulomb_set.f_ss.fill(0.);
-    Coulomb_set.f_cc.fill(0.);
-    Coulomb_set.f_sc.fill(0.);
-    Coulomb_set.f_cs.fill(0.);
 
+vec2d Displacement_orb(Ncv, 3); // displacements for interaction terms
 
-
-
-    #include "Fourier_Coulomb.cpp"
-    std::cout  << "   Coulomb_set.qTF   " << Coulomb_set.qTF << endl;
-    std::cout  << "   Coulomb_set.epsilon_static   " << Coulomb_set.epsilon_static << endl;
-    std::cout  << "   Coulomb_set.Coulomb_calc   " << Coulomb_set.Coulomb_calc << endl;
-    if(Coulomb_set.Wannie_basis){
-        std::cout  << "   Coulomb interaction defined in Wannier Basis   " << endl;
-    }
-    if(Coulomb_set.Diagonal_basis){
-        std::cout  << "   Coulomb interaction defined in diagonal Basis   " << endl;
-    }
-    if(Coulomb_set.Rytova_Keldysh){
-        std::cout  << "   Bare Coulomb in Rytova-Keldysh form   " << endl;
-
-    }
-}
 
 int TaylorOrder = Diff_Eq.TaylorOrder;
 
 if(Diff_Eq.Taylor){
     dt_prev.resize(TaylorOrder);
+    Coulomb_set.Taylor_Delta_Pk_max.resize(TaylorOrder); // for Taylor solver
+    Coulomb_set.Taylor_alpha_max.resize(TaylorOrder); 
     std::cout  << "   Taylot solver of oder   " << TaylorOrder << endl;
 } else{
     // RK time evolution
     std::cout  << "   Runge Kutta solver " << endl;
 }
+
+MPI_Barrier(MPI_COMM_WORLD);
+
 

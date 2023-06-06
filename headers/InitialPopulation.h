@@ -1,3 +1,4 @@
+
 void Initial_Population(vec3x& P0,int& nk, vec2d& kpt,  int nktotal, vec3x& Uk,double FermiE, int Nbands)
 {
     //Initial population: Fermi level
@@ -8,8 +9,8 @@ void Initial_Population(vec3x& P0,int& nk, vec2d& kpt,  int nktotal, vec3x& Uk,d
     {
         for (int ic=0; ic<Nbands; ic++) 
             P_bloch[ik][ic][ic]=1.;
-        for(int ic=Nbands; ic<P0.n2(); ic++)
-            P_bloch[ik][ic][ic]=0.;
+        // for(int ic=Nbands; ic<P0.n2(); ic++)
+        //     P_bloch[ik][ic][ic]=0.;
         for (int ia=0; ia<P0.n2(); ia++) 
             for(int ib=0; ib<P0.n2(); ib++)
                 for(int ii=0; ii<P0.n2(); ii++)

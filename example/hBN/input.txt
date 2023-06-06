@@ -1,0 +1,52 @@
+NEWINPUT
+
+tdse{
+tightbinding Haldane_CoreBN_Nedge gap=  7.25 t1=  -2.3 t2= 0 phi0= 0.0                  
+dt  0.05 au               
+t_fin 4547.55106702175 au
+dynamical_dt_evolution
+epsStepAbs 0.02
+Taylor
+TaylorOrder 6
+}
+
+Coulomb{
+qTF 0.01
+Ncut 20
+epsilon_static 1.0
+Rytova_Keldysh
+}
+
+
+nkPT{
+1 150 150
+}
+
+decoherence{
+corehole 0.00396892 au
+}
+
+
+
+laserpump sin2  {
+cycles 39    
+wavelength 233.9622641509434 nm
+intensity 5000000000.0 wcm2
+polarization 0 0 1                
+}
+
+laserprobe gaussian {
+sigma 0.08 fs
+delay  -0.1 fs
+intensity  10.e+04
+frequency 15.06
+polarization 1 0 0
+}
+
+
+
+observables{  
+it_resolution 2                                         
+TAbs
+Current
+}

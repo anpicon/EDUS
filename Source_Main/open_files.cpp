@@ -11,7 +11,7 @@
 
     if (rank_==0)
     {
-        system("mkdir Output");
+        // system("mkdir Output");
         fp_Loss.open("Output/Losses.txt");
         printf("->     Losses.txt opened  \n");
          

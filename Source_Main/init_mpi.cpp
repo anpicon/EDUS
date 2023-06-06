@@ -20,6 +20,6 @@ ierr = MPI_Comm_size ( MPI_COMM_WORLD, &num_procs );  //Determine the number of 
     
 int root_rank = 0;
 
-omp_set_num_threads( omp_get_max_threads() );
+// omp_set_num_threads( omp_get_max_threads() );
 
 cout << "omp_get_max_threads()" << omp_get_max_threads() << endl;     

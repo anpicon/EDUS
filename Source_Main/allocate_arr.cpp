@@ -23,11 +23,14 @@
     //NOTE!!! IN mpi nk != kpt.n1()!!
     // nk -> k to propagate ,
     // kpt.n1() -> k to propagate + k to receive
+    MPI_Barrier(MPI_COMM_WORLD);
+
     vec3x Hamiltonian(kpt.n1(), Ncv,Ncv);
     vec3x Unitary(nk, Ncv,Ncv);
     vec3x H_Eigen(nk, Ncv,Ncv);
     vec4x Dipole(nk, Ncv,Ncv,3);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     printf("->    Allocated H,U,D  \n");
     printf("                Memory required ~ %4.4f Mb\n", 5*nk*Ncv*Ncv*8.*2/(1024.*1024.));  
 

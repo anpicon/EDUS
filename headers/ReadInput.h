@@ -701,7 +701,7 @@ void Read_Input
                           {
                               if(str.size() < 2)
                               {
-                                  printf("Please specify the TightBinding type. Available types: Graphene, CoreGraphene, GrapheneZurron, BoronNitride, BN1b, DLGraphene, Vampa2015, Haldane_CoreBN_Bedge, gen2d_hexagonal, GeS.\n");
+                                  printf("Please specify the TightBinding type. Available types: Graphene, CoreGraphene, GrapheneZurron, BoronNitride, BN1b, DLGraphene, Vampa2015, Haldane_CoreBN_Bedge, gen2d_hexagonal, GeS, GeS_HSE06.\n");
                                   exit(1);
                               }
                               else
@@ -772,7 +772,7 @@ void Read_Input
                                       
                                       Nb[0] = 0; Nb[1] = 1; Nb[2] = 1;
                                   }
-                                  else if ( 0 == strcasecmp(TBtype.c_str(), "GeS"))
+                                  else if ( 0 == strcasecmp(TBtype.c_str(), "GeS") || 0 == strcasecmp(TBtype.c_str(), "GeS_HSE06") )
                                   {
                                       double ax = (4.53/2.)*space_A_au;
                                       double ay = (3.63/2.)*space_A_au;
@@ -785,9 +785,10 @@ void Read_Input
                                   else if ( 0 == strcasecmp(TBtype.c_str(), "Haldane_CoreBN_Bedge") || 0 == strcasecmp(TBtype.c_str(), "Haldane_CoreBN_Nedge") )
                                   {
                                     double LatticeConstant = 2.5*space_A_au;
+                                    double Detune_angle = 1.0;
                                       a[0][0] = 6.3303100000;       a[0][1] = 0.0000000000;                        a[0][2] = 0.0000000000;
-                                      a[1][0] = 0.0000000000;       a[1][1] = LatticeConstant*cos(pi/6.);          a[1][2] = LatticeConstant*sin(pi/6.);
-                                      a[2][0] = 0.0000000000;       a[2][1] = LatticeConstant*cos(pi/6.);          a[2][2] =-LatticeConstant*sin(pi/6.);
+                                      a[1][0] = 0.0000000000;       a[1][1] = LatticeConstant*cos(Detune_angle * pi/6.);          a[1][2] = LatticeConstant*sin(Detune_angle * pi/6.);
+                                      a[2][0] = 0.0000000000;       a[2][1] = LatticeConstant*cos(Detune_angle * pi/6.);          a[2][2] =-LatticeConstant*sin(Detune_angle * pi/6.);
                                       
                                       
                                       Nb[0] = 1; Nb[1] = 1; Nb[2] = 1;
@@ -1019,6 +1020,9 @@ void Read_Input
                       if ( 0 ==strcasecmp(str[0].c_str(), "qTF") ){
                         Coulomb_set.qTF = atof(str[1].c_str());
                       }
+                      if ( 0 ==strcasecmp(str[0].c_str(), "r0") ){ // ONLY a.u.!
+                        Coulomb_set.r0 = atof(str[1].c_str());
+                      }
                       if ( 0 ==strcasecmp(str[0].c_str(), "Rytova_Keldysh") ){
                         Coulomb_set.Rytova_Keldysh = true;
                       }
@@ -1058,6 +1062,7 @@ void Read_Input
                      {
                               str.clear();
                               pos =s.length();
+                              
                               Separate_string(s, str, pos);
                               if(str.size()<2)
                               {

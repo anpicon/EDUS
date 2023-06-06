@@ -3,6 +3,8 @@
 #pragma omp barrier
 #pragma omp master
 { // shared variables, only master change it
+    Coulomb_set.Taylor_Delta_Pk_max.fill(0.);
+    Coulomb_set.Taylor_alpha_max.fill(0.);
     Mpi_communication(P0,  message);
     MPI_Barrier(MPI_COMM_WORLD);
 }
@@ -45,11 +47,10 @@ get_derivative_Df(kpt, P0, OMP_private.Pv, T, Nb,
 // store population before we did time step in OMP_private.P_W_prev
 if (Diff_Eq.dynamical_dt_evolution){
     for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++){ // all local wave vectors
-        for(int ic=(Ncv-1); ic<Ncv; ic++){
-            for(int jc=ic; jc<Ncv; jc++){
-                OMP_private.P_W_prev[ik_pr][ic][jc] = P0[ik_pr + OMP_private.begin_count][ic][jc];
-                // OMP_private.P_dia_prev[ik_pr][ic][jc] = OMP_private.P_diag[ik_pr][ic][jc];
-            }
+        for(int ic=0; ic<Ncv; ic++){
+            OMP_private.P_W_prev[ik_pr][ic][ic] = P0[ik_pr + OMP_private.begin_count][ic][ic];
+            // OMP_private.P_dia_prev[ik_pr][ic][jc] = OMP_private.P_diag[ik_pr][ic][jc];
+            
         }
     }
 }
@@ -147,22 +148,57 @@ for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++){
         }
     }
 }
-
+    
 
     #pragma omp barrier // sinchronise threads
-    #pragma omp critical
-    {
-        if ((rank_ == root_rank) and it % (100*it_resolution) == 0){
-
-            cout  << "  order i= " << 1  << " Delta_Pk_max = " << Delta_Pk_max[0] << "Pv_max = " << Pv_max <<  endl;
-            for (int i = 1; i < TaylorOrder ; i++){
-
-                cout  << "  order i= " << i+1  << " Delta_Pk_max = " << Delta_Pk_max[i] << "  alpha_max[i]= "<< alpha_max[i] << endl;
+    if (it % (100*it_resolution) == 0){
+        #pragma omp critical
+        {
+            if (Coulomb_set.Taylor_Delta_Pk_max[0] < Delta_Pk_max[0] ){
+                Coulomb_set.Taylor_Delta_Pk_max[0] = Delta_Pk_max[0];
+                Coulomb_set.Taylor_Pv_max = Pv_max;
             }
-             cout  << endl;
+
+            for (int i = 1; i < TaylorOrder ; i++){ // here we messed up with indices because we have arrays from 0
+                if (Coulomb_set.Taylor_Delta_Pk_max[i] < Delta_Pk_max[i] ){
+                    Coulomb_set.Taylor_Delta_Pk_max[i] = Delta_Pk_max[i];
+                    Coulomb_set.Taylor_alpha_max[i] = alpha_max[i];
+                }
+
+            }
+
+
+            
         }
 
+        #pragma omp barrier // sinchronise threads
+        #pragma omp master
+        {
+            vec1d Taylor_Delta_Pk_max_MPI(TaylorOrder);
+            vec1d Taylor_alpha_max_MPI(TaylorOrder);
+            double Taylor_Pv_max_MPI;
+            
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Reduce(&Coulomb_set.Taylor_Delta_Pk_max[0], &Taylor_Delta_Pk_max_MPI[0], 
+                TaylorOrder, MPI_DOUBLE, MPI_MAX, root_rank, MPI_COMM_WORLD);
 
+            MPI_Reduce(&Coulomb_set.Taylor_alpha_max[0],    &Taylor_alpha_max_MPI[0], 
+                TaylorOrder, MPI_DOUBLE, MPI_MAX, root_rank, MPI_COMM_WORLD);
 
+            MPI_Reduce(&Coulomb_set.Taylor_Pv_max, &Taylor_Pv_max_MPI, 
+                1, MPI_DOUBLE, MPI_MAX, root_rank, MPI_COMM_WORLD);
+
+            MPI_Barrier(MPI_COMM_WORLD);
+
+            if ((rank_ == root_rank) ){
+
+                cout  << "  order i= " << 1  << " Delta_Pk_max = " << Taylor_Delta_Pk_max_MPI[0] << "Pv_max = " << Taylor_Pv_max_MPI <<  endl;
+                for (int i = 1; i < TaylorOrder ; i++){
+
+                    cout  << "  order i= " << i+1  << " Delta_Pk_max = " << Taylor_Delta_Pk_max_MPI[i] << "  alpha_max[i]= "<< Coulomb_set.Taylor_alpha_max[i] << endl;
+                }
+                 cout  << endl;
+            }
+        }
     }
     #pragma omp barrier // sinchronise threads

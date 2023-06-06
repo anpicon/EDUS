@@ -19,10 +19,17 @@ void get_derivative_Df(
     int Ncv=P.n2();
     int Nch=Nb[0];
     complex<double> corr; // correction of peak in Coulomb case
+    
     OMP_private.P_grad.fill(0.0); // variable to store gradient
 
     // electric field modulus:
-    double Emax = sqrt(EF[0][0]*EF[0][0] + EF[0][1]*EF[0][1] + EF[0][2]*EF[0][2]); 
+    double Emax = 0; // all components of field. We need it to know, if we need this field
+    for (int iE_1 = 0; iE_1 < 2; iE_1++){
+        for (int iE_2 = 0; iE_2 < 3; iE_2++){
+            Emax += EF[iE_1][iE_2]*EF[iE_1][iE_2];
+        }
+    }
+    Emax = sqrt(Emax); 
     double E_eps = 1e-20; // we suppose it's zero electric field
 
     
@@ -144,10 +151,22 @@ void get_derivative_Df(
                 Calculate_X_MPI(ik_pr, Xk_W, Ncv, Coulomb_set, trig_k, OMP_private.lenght_k);
 
                 //corrections due to the peak:
-                for (int ic=0; ic<Ncv; ic++){// summation over bands   // 
-                    for (int jc=0; jc<Ncv; jc++){ // summation over bands
-                        if (Coulomb_set.n_cond > pow(10, -15)){
-                            Xk_W[ic][jc] -= Coulomb_set.Screen_const[0] * P[ik][ic][jc];
+                int index_linear_tr, index_linear; 
+                if (Coulomb_set.n_cond > pow(10, -20)){
+                    for (int ic=0; ic<Ncv; ic++){// summation over bands   // 
+                        //Xk_W[ic][ic] -= Coulomb_set.Screen_const[0][0] * (P[ik][ic][ic] - OMP_private.P_Wannier_0[ik_pr][ic][ic]);           
+                        for (int jc=ic; jc<Ncv; jc++){ // summation over bands
+                            index_linear_tr = jc*Ncv + ic; // transposed index for transposed population
+                            if (ic != jc){
+                                index_linear = ic*Ncv + jc;
+                            } else {
+                                index_linear = 0;
+                            }
+                            
+                            Xk_W[ic][jc] -= conj(Coulomb_set.Screen_const[0][index_linear]) * (P[ik][jc][ic] - OMP_private.P_Wannier_0[ik_pr][jc][ic]);
+                            // conj(Coulomb_set.Screen_const[0][1]) here because we apply operation for reverse order of indices in population
+                            
+                            if (ic != jc) Xk_W[jc][ic] = conj(Xk_W[ic][jc]);
                         }
                     }
                 }
@@ -155,16 +174,19 @@ void get_derivative_Df(
             if(Coulomb_set.Diagonal_basis){
                 Calculate_X_MPI(ik_pr, Xk_d, Ncv, Coulomb_set, trig_k, OMP_private.lenght_k);
                 for (int ic=0; ic<Ncv; ic++){// summation over bands
+                    Xk_d[ic][ic] -= Coulomb_set.Screen_const[0][0] * (OMP_private.P_diag[ik][ic][ic] - OMP_private.P_Bloch_0[ik_pr][ic][ic]);
                     // #pragma omp simd
-                    for (int jc=0; jc<Ncv; jc++){ // summation over bands
+                    for (int jc=ic+1; jc<Ncv; jc++){ // summation over bands
                         //corrections due to the peak
                         //if (Coulomb_set.n_cond > pow(10, -18))
                         {
-                            Xk_d[ic][jc] -= Coulomb_set.Screen_const[0] * OMP_private.P_diag[ik][jc][ic];// \
+                            Xk_d[ic][jc] -= conj(Coulomb_set.Screen_const[0][1]) * OMP_private.P_diag[ik][jc][ic];// \
                                     + Coulomb_set.Screen_const[1] * Coulomb_set.P_d2kx[ik][jc][ic] \
                                     + Coulomb_set.Screen_const[2] * Coulomb_set.P_d2ky[ik][jc][ic] \
                                     + Coulomb_set.Screen_const[3] * Coulomb_set.P_dky_dkx[ik][jc][ic];
                             Coulomb_set.Xk_storage[ik][ic][jc] = Xk_d[ic][jc];
+                            Xk_d[jc][ic] = conj(Xk_d[ic][jc]);
+                            Coulomb_set.Xk_storage[ik][jc][ic] = conj(Xk_d[ic][jc]);
                         }
 
                     }
@@ -245,16 +267,19 @@ void get_derivative_Df(
                 for (int j=0; j<Ncv; j++)
                 {
                     whichEF = (jc>=Nch && j<Nch) || (jc < Nch && j >= Nch);
-                    alpha[j] += (Hk[jc][j]+EF[whichEF][0] *OMP_private.Dk[0][ik_pr][jc][j]+EF[whichEF][1] *OMP_private.Dk[1][ik_pr][jc][j]+
-                    EF[whichEF][2] *OMP_private.Dk[2][ik_pr][jc][j])*P[ik][ic][j];
+                    alpha[j] += (Hk[jc][j]+EF[whichEF][0] *OMP_private.Dk[0][ik_pr][jc][j] +  \
+                                EF[whichEF][1] *OMP_private.Dk[1][ik_pr][jc][j]+ \
+                                EF[whichEF][2] *OMP_private.Dk[2][ik_pr][jc][j])*P[ik][ic][j];
 
                 }
                 // #pragma omp simd
                 for (int j=0; j<Ncv; j++) 
                 {
                     whichEF = (ic>=Nch && j<Nch) || (ic < Nch && j >= Nch);
-                    alpha[j] -= conj((Hk[ic][j]+EF[whichEF][0] *OMP_private.Dk[0][ik_pr][ic][j]+EF[whichEF][1] *OMP_private.Dk[1][ik_pr][ic][j]+
-                    EF[whichEF][2] *OMP_private.Dk[2][ik_pr][ic][j])*P[ik][jc][j]);
+                    alpha[j] -= conj((Hk[ic][j] + \
+                                EF[whichEF][0] * OMP_private.Dk[0][ik_pr][ic][j]+ \
+                                EF[whichEF][1] * OMP_private.Dk[1][ik_pr][ic][j]+ \
+                                EF[whichEF][2] * OMP_private.Dk[2][ik_pr][ic][j]) *P[ik][jc][j]);
                 }
                 complexd beta=0.; for (int j=0; j<Ncv; j++) beta+=alpha[j];
                 Pv[ik_pr][ic][jc]=-c1*beta;
@@ -268,36 +293,42 @@ void get_derivative_Df(
         ******************       in the Wannier gauge       *************************
         *****************************************************************************
         ****************************************************************************/
-        OMP_private.Mk.fill(0.0);
-        for (int ii=0; ii<Ncv; ii++){
-            for (int jj=0; jj<Ncv; jj++){
+        if (OMP_private.n_diss_terms > 0) { // perform this only if we have non zero dissipation terms
+            OMP_private.Mk.fill(0.0); // !!!if
+            int ii, jj;
+            for (int i_0=0; i_0 <OMP_private.n_diss_terms; i_0++){
+                ii = OMP_private.T_dissip_index_0[i_0]; // we need only terms with non zero T
+                jj = OMP_private.T_dissip_index_1[i_0];
                 for (int i=0; i<Ncv; i++){
                     alpha.fill(0.);
                     // #pragma omp simd
                     for (int j=0; j<Ncv; j++){
-                        alpha[j]=conj(OMP_private.Uk[ik_pr][ii][i])*OMP_private.Uk[ik_pr][jj][j]*P[ik][i][j]; //this term depends on ii,jj,i,j
+                        alpha[j]= conj(OMP_private.Uk[ik_pr][ii][i])* \
+                                    OMP_private.Uk[ik_pr][jj][j] *P[ik][i][j]; //this term depends on ii,jj,i,j
                     }//end j
-                    for (int j=0; j<Ncv; j++) OMP_private.Mk[ii][jj]+=alpha[j];
+                    for (int j=0; j<Ncv; j++) OMP_private.Mk[ii][jj] += alpha[j];
                 }//end i
-            }//end jj
-        }//end ii
-        
-        for (int ic=0; ic<Ncv; ic++)
-        {
-            for (int jc=ic; jc<Ncv; jc++)
-            {
-                for (int ii=0; ii<Ncv; ii++){
-                    for (int jj=0; jj<Ncv; jj++){
-                        Pv[ik_pr][ic][jc]-=OMP_private.hUk[ik_pr][jc][jj]*conj(OMP_private.Uk[ik_pr][ic][ii])*T[ii][jj]*OMP_private.Mk[ii][jj];//part of dissipation coming from the electron equations
-                    }//end sum over jj (in the notes j)
-                }//end sum over ii (in the notes i)
-                complexd Tii=0.;
-                for (int i=0; i<(Nb[0]+Nb[1]); i++) Tii+=OMP_private.hUk[ik_pr][jc][i]*conj(OMP_private.hUk[ik_pr][ic][i])*T[i][i];
-                Pv[ik_pr][ic][jc] += Tii; //part of dissipation coming only from the holes
-                
+            }//end ii
+            
+            for (int ic=0; ic<Ncv; ic++) {
+                for (int jc=ic; jc<Ncv; jc++) {
+                    for (int i_0=0; i_0 <OMP_private.n_diss_terms; i_0++){
+                        ii = OMP_private.T_dissip_index_0[i_0]; // we need only terms with non zero T
+                        jj = OMP_private.T_dissip_index_1[i_0];
 
-            }//end jc
-        }//end ic
+                        Pv[ik_pr][ic][jc] -= OMP_private.hUk[ik_pr][jc][jj] * \
+                                        conj(OMP_private.Uk[ik_pr][ic][ii]) * \
+                                        T[ii][jj] *OMP_private.Mk[ii][jj];//part of dissipation coming from the electron equations
+                    }//end sum over i_0 (in the notes i)
+                    complexd Tii=0.;
+                    for (int i=0; i<(Nb[0]+Nb[1]); i++) {
+                        Tii += OMP_private.hUk[ik_pr][jc][i] *conj(OMP_private.hUk[ik_pr][ic][i])* T[i][i];
+                    }
+                    Pv[ik_pr][ic][jc] += Tii; //part of dissipation coming only from the holes
+                    
+                }//end jc
+            }//end ic
+        } // end if (OMP_private.n_diss_terms > 0)
         
 
         //-------- GRADIENT ----------//

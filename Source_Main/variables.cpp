@@ -4,6 +4,7 @@
     *************************************************   variables of the calculation     ************************************************************
     *************************************************************************************************************************************************
     *************************************************************************************************************************************************/
+    if (rank_ == root_rank) system("mkdir Output");
     int Ncut=30;  // number of terms in Fourier series
     double dt = 0.1;
     int it_resolution = 10; // default
@@ -22,8 +23,7 @@
     Coulomb_set.Coulomb_calc = false;// by default it false, if we don't initialize in in input file
     Coulomb_set.qTF = 0.0;
     Coulomb_set.epsilon_static = 1.0;
-    Coulomb_set.A.resize(Ncut*Ncut); // !!!! allocate memory for coefficients
-    Coulomb_set.D.resize(Ncut*Ncut); // !!!! allocate memory for coefficients
+
     Coulomb_set.Ncut = Ncut;
     Coulomb_set.test = 0.0;
     Coulomb_set.Wannie_basis = true; // by default in Wannier basis
@@ -31,9 +31,10 @@
     Coulomb_set.Rytova_Keldysh = false;
     Coulomb_set.Print_new_band_dispersion = false;
     Coulomb_set.n_cond = 0;
-    
-    Coulomb_set.Screen_const.resize(4);// [0] - without derivatives
-  // [1] - d^2 /dx^2 // [2] - d^2/dy^2 // [3] - d^2/(dxdy)
+    Coulomb_set.Sample_orientation = "011"; // by default in yz plane and is 011
+    // Rytova-Keldysh polarizability parameter, by default
+    Coulomb_set.r0 = 18.89726; //a.u. BN on quarz Henriques et al https://doi.org/10.1088/1361-648X/ab47b3
+
 
 
 
@@ -84,6 +85,7 @@
     bool print_matrices_in_kspace = false;
     double Emax = 0.0;
     double E_eps= 1e-12; // default 
+    complex<double> D_temporary;
 
     //for gradient calculation
     vector<vector<vector<int>>> GradientIndex;

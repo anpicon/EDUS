@@ -255,7 +255,16 @@ void get_P_in_dia(vec3x& P, vec3x& Uk, vec3x& P_dia, int& Ncv,
 void get_P_in_dia_vect(vec3x& P, vec3x& Uk, vec3x& P_diag, int& Ncv,  
   int ik_P, int ik_U, Private_omp_parameters& OMP_private){
 
-  
+    int ik_P_OMP_private = 0;
+    vec3x P_OMP_private(1, Ncv, Ncv); // 1 - for unification, so we can use function get_P_in_dia
+    for (int ic=0; ic<Ncv; ic++){  // create a private OpenMP copy of population
+        for (int jc=ic; jc<Ncv; jc++){ // elements with jc < ii are conj
+            P_OMP_private[0][ic][jc] = P[ik_P][ic][jc];
+            if (ic != jc){
+                P_OMP_private[0][jc][ic] = conj(P_OMP_private[0][ic][jc]);
+            }
+        }
+    }
 
     OMP_private.Mk.fill(0.0);
     for (int ii=0; ii<Ncv; ii++){
@@ -265,8 +274,8 @@ void get_P_in_dia_vect(vec3x& P, vec3x& Uk, vec3x& P_diag, int& Ncv,
             #pragma omp simd safelen(4)
             for (int jj=0; jj<Ncv; jj++){
                 // OMP_private.Ak[jj] = P[ik_P][ii][jj]* Uk[ik_U][jc][jj];
-                Ak_P_Uk_fill_vector_function(OMP_private.Ak, P, Uk, 
-                    ik_P, ik_U, ii, jc, jj);
+                Ak_P_Uk_fill_vector_function(OMP_private.Ak, P_OMP_private, Uk, 
+                    ik_P_OMP_private, ik_U, ii, jc, jj);
             }//end jj
             for (int jj=0; jj<Ncv; jj++){
                 OMP_private.Mk[jc][ii] += OMP_private.Ak[jj];

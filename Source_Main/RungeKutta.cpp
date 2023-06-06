@@ -1,11 +1,9 @@
 //save current population in OMP_private.P0 before apply RungeKutta
 if (Diff_Eq.dynamical_dt_evolution){
     for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++){ // all local wave vectors
-        for(int ic=(Ncv-1); ic<Ncv; ic++){
-            for(int jc=ic; jc<Ncv; jc++){
-                OMP_private.P0[ik_pr][ic][jc] = P0[ik_pr + OMP_private.begin_count][ic][jc];
-                // OMP_private.P2_dia[ik_pr][ic][jc] = OMP_private.P_diag[ik_pr + OMP_private.begin_count][ic][jc];
-            }
+        for(int ic=0; ic<Ncv; ic++){
+            OMP_private.P0[ik_pr][ic][ic] = P0[ik_pr + OMP_private.begin_count][ic][ic];
+            // OMP_private.P2_dia[ik_pr][ic][jc] = OMP_private.P_diag[ik_pr + OMP_private.begin_count][ic][jc];
         }
     }
 }
@@ -120,11 +118,10 @@ Runge_Kutta_Ad(P1,P0,OMP_private.Pv,dt6,OMP_private);
 // store population before we did RK step in OMP_private.P_W_prev
 if (Diff_Eq.dynamical_dt_evolution){
     for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++){ // all local wave vectors
-        for(int ic=(Ncv-1); ic<Ncv; ic++){
-            for(int jc=ic; jc<Ncv; jc++){
-                OMP_private.P_W_prev[ik_pr][ic][jc] = OMP_private.P0[ik_pr][ic][jc];
+        for(int ic=0; ic<Ncv; ic++){
+                OMP_private.P_W_prev[ik_pr][ic][ic] = OMP_private.P0[ik_pr][ic][ic];
                 // OMP_private.P_dia_prev[ik_pr][ic][jc] = OMP_private.P2_dia[ik_pr][ic][jc];
-            }
+            
         }
     }
 }

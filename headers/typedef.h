@@ -41,6 +41,7 @@ vec6x    vecE6x;
 // trigonometric coefficients to calculate sums over k vectors
 struct trig_coefficients{
   vec1d cos_mkx, sin_mkx, cos_nky, sin_nky;
+  string Sample_orientation; // by default in yz plane and is 011
 };
 
 // structure contains which solving methods we have
@@ -60,7 +61,7 @@ struct Private_omp_parameters{
   // P_diag - population in basis where equilibrium energy is diagonal
   // P_eigen -  population in basis where non-equlibrium hamiltonian is diagonal, 
   // different from P_diag only if we have Coulomb term
-  vec3x P0, P1, P2, Pv, P_diag, P_eigen;
+  vec3x P0, P_Wannier_0, P_Bloch_0, P1, P2, Pv, P_diag, P_eigen;
 
   vec2x P_0_dyn;
 
@@ -89,7 +90,8 @@ struct Private_omp_parameters{
   vec2x Mk;
   vec1x Ak;
   vec3x Hk_renorm;
-
+  vec1i T_dissip_index_0, T_dissip_index_1; 
+  int n_diss_terms;
 };
 
 

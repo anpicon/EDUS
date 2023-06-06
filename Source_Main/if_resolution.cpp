@@ -4,7 +4,7 @@
 #pragma omp master
 {   
     
-    if ((rank_ == root_rank) and ((it-iti) % (10*it_resolution) == 0))
+    if ((rank_ == root_rank) and ( it % (10*it_resolution) == 0))
     {
     cout << " it: " << it << " time: " << time_loop*time_au_fs << " fs, time fin: " << t_fin*time_au_fs << " fs" << endl; 
     }
@@ -18,7 +18,7 @@
 
 print_matrices_in_kspace = false;
 if (    
-        (((it-iti) % (5000*it_resolution) == 0)  or (it-iti) == 1000)
+        (( it % (100*it_resolution) == 0) )
         and (Coulomb_set.Print_new_band_dispersion or Diff_Eq.PrintPopulation) // if there are flag to print any type of matrices 
         and ((time_loop* time_au_fs) > (-0.2)) 
         // and (Emax < E_eps) 
@@ -67,7 +67,13 @@ if (Coulomb_set.Coulomb_calc) {
     //     Coulomb_set.n_cond = n_cond;
     // }
     
-    
+    // #pragma omp master
+    //     {
+    //     PrintLossesMPI(nk, nktot, fp_Loss, 
+    //     Nb[0], (Nb[0]+Nb[1]), 
+    //     P0, time_loop, Unitary, n_cond, P_cond_max_loc_mpi);
+    //     }
+    #pragma omp barrier
 
    
 
@@ -85,7 +91,7 @@ if (Coulomb_set.Coulomb_calc) {
      //    Nb[0], (Nb[0]+Nb[1]), 
      //    P0, time_loop, Unitary, n_cond, P_cond_max_loc_mpi);
      //    }
-     //    #pragma omp barrier
+    #pragma omp barrier
  }
    
 
@@ -161,7 +167,7 @@ if(iCurrent)
     Current1(fp_J1, 
         OMP_private, P0,
         GradientEnergy, time_loop, dk,
-        nktot, Coord_B::getJ(), J1);
+        nktot, det_a, J1);
 
     #pragma omp barrier
 
@@ -169,13 +175,13 @@ if(iCurrent)
         Current2(fp_J2, 
         OMP_private, P0,
         Dipole, Coulomb_set.Hk_renorm_shared, time_loop, dk,
-        nktot, Coord_B::getJ(), J2);
+        nktot, det_a, J2);
 
     }else{
         Current2(fp_J2, 
         OMP_private, P0,
         Dipole, Hamiltonian, time_loop, dk,
-        nktot, Coord_B::getJ(), J2);
+        nktot, det_a, J2);
     }
     
 
@@ -189,9 +195,6 @@ if(iCurrent)
         PrintTransientAbsMPI(nk,nktot,fp_TAbs, P0, time_loop, EF_pr[1], dk, Nb[0], Coord_B::getJ(), Dipole);
     }
  }
-
-
-
 
 
 
@@ -212,30 +215,6 @@ if (Coulomb_set.Coulomb_calc and ((it-iti) % (100*it_resolution) == 0)) {
     OMP_private, Coulomb_set, root_rank);
 
 
-    // #pragma omp barrier
-    // #pragma omp master
-    // {   
-    
-    //     if (rank_ == root_rank){
-    //         cout << " values of P_dky[Ncv-1][Ncv-1] ";
-    //     }
-    // }
-    // print_max_min_conduct(Coulomb_set.P_dky, 
-    // OMP_private, Coulomb_set, root_rank);
-
-    // #pragma omp barrier
-    // #pragma omp master
-    // {   
-    
-    //     if (rank_ == root_rank){
-    //         cout << " values of P_d2ky[Ncv-1][Ncv-1] ";
-    //     }
-    // }
-    // print_max_min_conduct(Coulomb_set.P_d2ky, 
-    // OMP_private, Coulomb_set, root_rank);
-    // #pragma omp barrier
-
-
 
 }
 
@@ -246,31 +225,82 @@ double scaled_t = round( time_loop*time_au_fs* pow(10,4)) / pow(10,4);
 if ( Diff_Eq.PrintPopulation and print_matrices_in_kspace)// ((it-iti) % (500*it_resolution) == 0))
 {
 
-    string label = "P_cond_in_eigenstate";
+    // string label = "P_cond_in_eigenstate";
+    // double scaled_t = round( time_loop*time_au_fs* pow(10,4)) / pow(10,4);
+    // Print_vec3x_MPI(OMP_private.P_eigen, Ncv-1, Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,
+    //  label, icont); // icont - the same number as in in Ec
+
+    // label = "P_val_cond_in_eigenstate";
+    // Print_vec3x_MPI(OMP_private.P_eigen, Ncv-2, Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,
+    //  label, icont); // icont - the same number as in in Ec
+
+    string label = "P_cond_in_Bloch";
+    int ik_pr; // transform into Bloch basis
+    for (int ik = OMP_private.begin_count; ik < OMP_private.end_count; ik++){ // all local wave vectors
+        ik_pr = ik - OMP_private.begin_count;
+        
+        // function transforms P[ik] with OMP_private.Uk[ik_pr] and writes it to the 
+        // OMP_private.P_diag[ik]
+        get_P_in_dia_vect(P0,  OMP_private.Uk, OMP_private.P_diag, Ncv, 
+            ik, ik_pr, OMP_private);
+    }
     double scaled_t = round( time_loop*time_au_fs* pow(10,4)) / pow(10,4);
-    Print_vec3x_MPI(OMP_private.P_eigen, Ncv-1, Ncv-1, scaled_t,
+    for (int ii = (Nb[0]+Nb[1]); ii<Ncv; ii++){
+        Print_vec3x_MPI(OMP_private.P_diag, ii, ii, scaled_t,
+         OMP_private,
+         Coulomb_set,
+         label, icont); // icont - the same number as in in Ec
+    }
+
+    label = "P_val_cond_in_Bloch";
+    Print_vec3x_MPI(OMP_private.P_diag, Ncv-2, Ncv-1, scaled_t,
      OMP_private,
      Coulomb_set,
      label, icont); // icont - the same number as in in Ec
 
-    label = "P_val_cond_in_eigenstate";
-    Print_vec3x_MPI(OMP_private.P_eigen, Ncv-2, Ncv-1, scaled_t,
+
+    label = "P_Wannier_";
+    Print_vec3x_MPI(P0, Ncv-1, Ncv-1, scaled_t,
      OMP_private,
      Coulomb_set,
      label, icont); // icont - the same number as in in Ec
 
+    label = "P_Wannier_";
+    Print_vec3x_MPI(P0, Ncv-2, Ncv-1, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, icont); // icont - the same number as in in Ec
 
-    // label = "P_Wannier_c_c";
-    // Print_vec3x_MPI(P0, Ncv-1, Ncv-1, scaled_t,
+    // label = "P_Wannier_v_v";
+    // Print_vec3x_MPI(P0, Ncv-2, Ncv-2, scaled_t,
     //  OMP_private,
     //  Coulomb_set,
     //  label, icont); // icont - the same number as in in Ec
 
-    // label = "P_Wannier_v_c";
-    // Print_vec3x_MPI(P0, Ncv-2, Ncv-1, scaled_t,
+    // label = "P_Wannier_core_core";
+    // Print_vec3x_MPI(P0, Ncv-3, Ncv-3, scaled_t,
     //  OMP_private,
     //  Coulomb_set,
     //  label, icont); // icont - the same number as in in Ec
+
+    // label = "P_Wannier_core_c";
+    // Print_vec3x_MPI(P0, Ncv-3, Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,
+    //  label, icont); // icont - the same number as in in Ec
+
+    // label = "P_Wannier_core_v";
+    // Print_vec3x_MPI(P0, Ncv-3, Ncv-2, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,
+    //  label, icont); // icont - the same number as in in Ec
+
+
+
 
 
     if(it == 0){
@@ -286,14 +316,27 @@ if ( Diff_Eq.PrintPopulation and print_matrices_in_kspace)// ((it-iti) % (500*it
          Coulomb_set,
          label, it);
 
-        label = "Uk_cond";
+        label = "Uk_cond_11";
         Print_vec3x_MPI(Unitary, Ncv-1,Ncv-1, scaled_t,
          OMP_private,
          Coulomb_set,
          label, it);
 
+        label = "Uk_val";
+        Print_vec3x_MPI(Unitary, Ncv-2,Ncv-2, scaled_t,
+         OMP_private,
+         Coulomb_set,
+         label, it);
+
+
         label = "Uk10_offdia";
         Print_vec3x_MPI(Unitary, Ncv-1,Ncv-2, scaled_t,
+         OMP_private,
+         Coulomb_set,
+         label, it);
+
+        label = "Uk01_offdia";
+        Print_vec3x_MPI(Unitary, Ncv-2,Ncv-1, scaled_t,
          OMP_private,
          Coulomb_set,
          label, it);
@@ -339,39 +382,11 @@ if ( Diff_Eq.PrintPopulation and print_matrices_in_kspace)// ((it-iti) % (500*it
     //      label, it);
     // }
 
-    // label = "P_cond_Wannier";
-    // Print_vec3x_MPI(P0, Ncv-1,Ncv-1, scaled_t,
-    //  OMP_private,
-    //  Coulomb_set,
-    //  label, it);
 
-    // label = "P_offdia_Wannier";
-    // Print_vec3x_MPI(P0, Ncv-2,Ncv-1, scaled_t,
-    //  OMP_private,
-    //  Coulomb_set,
-    //  label, it);
-
-    // label = "P_offdia_eigen";
-    // Print_vec3x_MPI(OMP_private.P_eigen, Ncv-2,Ncv-1, scaled_t,
-    //  OMP_private,
-    //  Coulomb_set,
-    //  label, it);
-
-
-    // label = "P_Gradient_cond";
-    // Print_vec3x_MPI(OMP_private.P_grad, Ncv-1, Ncv-1, time_loop,
-    //  OMP_private,
-    //  Coulomb_set,
-    //  label, it);
-
-    // label = "P_Gradient_offdia";
-    // Print_vec3x_MPI(OMP_private.P_grad, Ncv-2, Ncv-1, time_loop,
-    //  OMP_private,
-    //  Coulomb_set,
-    //  label, it);
 
 
 }
+
 
 if (it == 0){
     Diagonalize_unitary_vec3x(OMP_private.Hk, H_Eigen, OMP_private);
@@ -382,11 +397,114 @@ if (it == 0){
      Coulomb_set,
      label, it);
 
-
     label = "H_Eigen_val";
     Print_vec3x_MPI(H_Eigen, Ncv-2,Ncv-2, scaled_t,
      OMP_private,
      Coulomb_set,
      label, it);
+
+    label = "H_Eigen_val_cond";
+    Print_vec3x_MPI(H_Eigen, Ncv-2,Ncv-1, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+    label = "H_Eigen_";
+    Print_vec3x_MPI(H_Eigen, Ncv-3,Ncv-3, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+
+    label = "H_Wannier_cond";
+    Print_vec3x_MPI(Hamiltonian, Ncv-1,Ncv-1, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+    label = "H_Wannier_val_cond";
+    Print_vec3x_MPI(Hamiltonian, Ncv-2,Ncv-1, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+    label = "H_Wannier_val";
+    Print_vec3x_MPI(Hamiltonian, Ncv-2,Ncv-2, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+
+    label = "P_Wannier_";
+    Print_vec3x_MPI(P0, Ncv-1,Ncv-1, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+    label = "P_Wannier_";
+    Print_vec3x_MPI(P0, Ncv-1,Ncv-2, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+    label = "Uk_";
+    Print_vec3x_MPI(Unitary, Ncv-1,Ncv-1, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+    label = "Uk_";
+    Print_vec3x_MPI(Unitary, Ncv-1,Ncv-2, scaled_t,
+     OMP_private,
+     Coulomb_set,
+     label, it);
+
+
+    // vec2x Xk_W(Ncv,Ncv); // Coulomb term in Wannier Basis
+    // vec2x Xk_d(Ncv,Ncv); // Coulomb term in eigenstate Basis
+    // int ik; // position in shared variable
+    // for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++) // loop over position in private variable
+    // {
+    //     ik = ik_pr + OMP_private.begin_count; // coordinate in global array
+    //     // from diagonal back to wannier basis:
+    //     for (int ic=0; ic<Ncv; ic++){// summation over bands   // 
+    //         for (int jc=0; jc<Ncv; jc++){ // summation over bands
+    //             Xk_d[ic][jc] = H_Eigen[ik][ic][jc];
+    //         }
+    //     }
+
+    //     get_Xd_in_Wannier_vect(Xk_d, Xk_W, OMP_private.Uk, 
+    //                 Ncv,  ik_pr, OMP_private);
+
+    //     for (int ic=0; ic<Ncv; ic++){// summation over bands   // 
+    //         for (int jc=0; jc<Ncv; jc++){ // summation over bands
+    //             H_Eigen[ik][ic][jc] = Xk_W[ic][jc]; // sorry for this, but don't want to introduce new variable
+    //         }
+    //     }
+
+    // }
+
+    // label = "H_Wannier_transformed_by_unitary_cond";
+    // Print_vec3x_MPI(H_Eigen, Ncv-1,Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,
+    //  label, it);
+
+
+    // label = "H_Wannier_transformed_by_unitary_val_cond";
+    // Print_vec3x_MPI(H_Eigen, Ncv-2,Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,
+    //  label, it);
+
+    // label = "H_Wannier_transformed_by_unitary_val";
+    // Print_vec3x_MPI(H_Eigen, Ncv-2,Ncv-2, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,
+    //  label, it);
+
+
+
+    
 
 }

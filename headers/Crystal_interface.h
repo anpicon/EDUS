@@ -31,6 +31,7 @@ void Crystal::init(vec2d& a,vec2d& b,int Nch, int Ncv)
 	fp_in.open("kmesh_data.dat");
 	//a0
 	getline(fp_in,trash);
+	std::cout << "line1" << trash << endl;
 	getline(fp_in,trash); pos=trash.length();
     Separate_string(trash, str, pos);
 	a[1][1] = atof(str[0].c_str()); a[1][2]=atof(str[1].c_str()); //!!!! change to zxy!!!
@@ -43,6 +44,7 @@ void Crystal::init(vec2d& a,vec2d& b,int Nch, int Ncv)
 	//b0
 	getline(fp_in,trash);
 	getline(fp_in, trash); pos=trash.length();
+	std::cout << "line6" << trash << endl;
 	Separate_string(trash, str, pos);
 	b[1][1] = atof(str[0].c_str()); b[1][2]=atof(str[1].c_str());
 	//b1
@@ -51,22 +53,33 @@ void Crystal::init(vec2d& a,vec2d& b,int Nch, int Ncv)
 	Separate_string(trash, str, pos);
 	b[2][1] = atof(str[0].c_str()); b[2][2]=atof(str[1].c_str());
 	b[0][0]=1./15.;
+	std::cout << "line7" << trash << endl;
 	Coord_B::set_crys_to_cart(b);
 	//atomic_position
 
 	do{
 		getline(fp_in,trash);pos=trash.length();
 		Separate_string(trash, str, pos);
+		std::cout << "line_do" << trash << endl;
 	}
-	while(0 !=  strcasecmp( "elements", str[str.size()-1].c_str() )); 
+	while (0 !=  strcasecmp( "basis", str[str.size()-1].c_str() )); 
 	//orbitals
 	getline(fp_in,trash);pos=trash.length();
+	std::cout << "line8" << trash << endl;
 //cout << trash;
 	Separate_string(trash, str, pos);
 	NumberOfOrbitals=atoi(str[0].c_str());
 	//kpoints
-	getline(fp_in,trash); 
-	getline(fp_in,trash); pos=trash.length();
+
+	do{
+		getline(fp_in,trash);pos=trash.length();
+		Separate_string(trash, str, pos);
+		std::cout << "line" << trash << endl;
+	}
+	while(0 !=  strcasecmp( "direction", str[str.size()-1].c_str() )); 
+	std::cout << "line" << trash << endl;
+
+	getline(fp_in,trash);pos=trash.length();
 	Separate_string(trash, str, pos);
 	nk_file=atoi(str[0].c_str());
 	getline(fp_in,trash);
@@ -278,6 +291,7 @@ void Crystal::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)
 	    for (int jc=0; jc <H.n2(); jc++)
 	    {
 	        Hw(ic, jc) = H[ic][jc];
+	        // Hw(ic, jc) *= 1.0e9 ;
 	    }
 	}
 	eig_sym(epsilon, U, Hw);

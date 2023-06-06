@@ -36,6 +36,7 @@ class TightBinding
     double core; // energy of the core band
     double rchv;  // dipole between core and valence
     double rchc;  // dipole between core and conduction
+    double Romb_dist; // rombic distortion rate
     vec3d coeff;
 };
 
@@ -84,6 +85,7 @@ void TightBinding::init(string name,int& Nch, int& Ncv)
         c=0;
         d=0*energy_eV_au;
         g=6.2*energy_eV_au;//Bandgap in eV
+        Romb_dist = 0.0; // 
     }
     else if (_name=="DLGraphene")
     {
@@ -128,7 +130,7 @@ void TightBinding::init(string name,int& Nch, int& Ncv)
         f=2.49*energy_eV_au;
         g=67.56*energy_eV_au;
     }
-    else if(_name=="GeS")
+    else if(_name=="GeS") //  A. M. Cook, B. M Fregoso, F. De Juan, S. Coh, and J. E. Moore, Nature communications 8, 1 (2017).
     {
         g=0.41*energy_eV_au;  //gap
         f=-2.33*energy_eV_au; //t1 hopping
@@ -136,6 +138,15 @@ void TightBinding::init(string name,int& Nch, int& Ncv)
         b=0.13*energy_eV_au;  //t3 hopping
         c=0.07*energy_eV_au;  //tt1 hopping
         d=-0.09*energy_eV_au; //tt2 hopping
+    }
+    else if(_name=="GeS_HSE06") // Alejandro Parameters with larger gap ((hybrid) exchange-correlation functionals)
+    {
+        g  =  0.62  *energy_eV_au;  //gap
+        f  =  2.91  *energy_eV_au; //t1 hopping
+        t2 = -0.797 *energy_eV_au; //t2 hopping
+        b  = -0.05  *energy_eV_au;  //t3 hopping
+        c  = -0.14  *energy_eV_au;  //tt1 hopping
+        d  =  0.106 *energy_eV_au; //tt2 hopping
     }
 }
 
@@ -427,7 +438,7 @@ complexd TightBinding::energy(int& ic, int& jc, Coord_B& k)
         }
         else return 0.;
     }
-    else if (_name=="GeS")
+    else if (_name=="GeS" || _name=="GeS_HSE06")
     {
         if(ic == jc)
         {
@@ -991,7 +1002,7 @@ complexd TightBinding::unitary(int& ic, int& jc, Coord_B& k)
             else return 0.;
         }
     }
-    else if(_name == "GeS")
+    else if(_name == "GeS" || _name=="GeS_HSE06")
     {
         complexd phix = exp(c1*2.*pi*k.crys[1])+exp(c1*2.*pi*k.crys[2]);
         complexd tor  = -f-t2*phix-b*conj(phix);
@@ -1331,7 +1342,7 @@ complexd TightBinding::dipoley(int& ic, int& jc, Coord_B& k)
             return -a/sqrt(3.);
         else return 0.;
     }
-    else if (_name == "GeS")
+    else if (_name == "GeS" || _name=="GeS_HSE06")
     {
         if (ic == 1 && jc == 1)
             return 0.52*space_A_au;

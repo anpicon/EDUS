@@ -36,25 +36,10 @@ int main (int argc, char* argv[])
     }
     #include "Source_Main/variables.cpp"
     #include "Source_Main/input.cpp" //we define the iMode=TB, W, or CY
-    
-    if(iMode == "W")
-    {
-        cout << "Care. you are using wannier input and the crystal directions are being changed 012->201\n";
-        vec2d atemp(3,3);
-        for(int i=0; i<3; i++)
-            for(int j=0; j<3; j++)
-                atemp[i][j] = a[i][j];
-        for(int j=0; j<3; j++)
-        {
-            a[0][j] = atemp[2][j];
-            a[1][j] = atemp[0][j];
-            a[2][j] = atemp[1][j];
-        }         
-        VecProd(b[0],a[1],a[2]); VecProd(b[1],a[2],a[0]); VecProd(b[2],a[0],a[1]);
-        double value=DotProd(a[0],b[0])/2./pi; b[0][0]/=value; b[0][1]/=value; b[0][2]/=value;
-        value=DotProd(a[1],b[1])/2./pi; b[1][0]/=value; b[1][1]/=value; b[1][2]/=value;
-        value=DotProd(a[2],b[2])/2./pi; b[2][0]/=value; b[2][1]/=value; b[2][2]/=value;
-    }       
+    if (Coulomb_set.Coulomb_calc){
+        #include "Source_Main/Fourier_Coulomb.cpp"
+    }
+
     int nktot = Nk[0]*Nk[1]*Nk[2];
     vector<Message> message;
     
@@ -63,6 +48,8 @@ int main (int argc, char* argv[])
     dk, nk, message);
 
     #include "Source_Main/test_matrix_k.cpp"
+
+
     #include "Source_Main/allocate_arr.cpp"
     #include "Source_Main/open_files.cpp"
     MPI_Barrier(MPI_COMM_WORLD);
@@ -76,9 +63,27 @@ int main (int argc, char* argv[])
         t_fin = itfi*dt;
     }
     double dt0 = dt;
-    iti /= 5;
+    iti = 0;//= 5;
     // itfi /= 2;
     double time_loop;
+
+    //Here we create list of indices of T matrix with non zero element
+    vec1i index_diss_term_0(T.n1() * T.n2()); // temporal to store indices of non zero dissipation element
+    vec1i index_diss_term_1(T.n1() * T.n2()); // temporal to store indices of non zero dissipation element
+    int n_diss_terms = 0;
+    for (int ic=0; ic<T.n1(); ic++){
+        for (int jc=0; jc<T.n2(); jc++) {
+            if (abs(T[ic][jc])> 1e-24){
+                index_diss_term_0[n_diss_terms] = ic;
+                index_diss_term_1[n_diss_terms] = jc;
+                n_diss_terms += 1;
+            } 
+        }
+    } // in multithread part will be stored in OMP_private structure
+
+    cout << "n_diss_terms " << n_diss_terms << endl;
+
+        
 
     // // START WITH NON-EQUILIBRIUM STATE
     // for (int ik = 0; ik < nk; ik++){ // all wave vectors
@@ -133,17 +138,18 @@ MPI_Barrier(MPI_COMM_WORLD);
     OMP_private.id_masters[OMP_private.thr_id] = true;
     #pragma omp critical
     {
-    std::cout << " leftover " << leftover << " lenght_k_omp: " << OMP_private.lenght_k<< endl;
-    std::cout << " nk on node: " << nk << " begin_count: " << OMP_private.begin_count << " end_count: " << OMP_private.end_count << endl << endl;
+        std::cout << " leftover " << leftover << " lenght_k_omp: " << OMP_private.lenght_k<< endl;
+        std::cout << " nk on node: " << nk << " begin_count: " << OMP_private.begin_count << " end_count: " << OMP_private.end_count << endl << endl;
     }
     
 
 
     OMP_private.integrWeight.resize(OMP_private.lenght_k);
+    OMP_private.P_Wannier_0.resize(OMP_private.lenght_k,  Ncv,Ncv);
+    OMP_private.P_Bloch_0.resize(OMP_private.lenght_k,  Ncv,Ncv);
     OMP_private.P0.resize(OMP_private.lenght_k,  Ncv,Ncv);
-    OMP_private.P1.resize(OMP_private.lenght_k,  Ncv,Ncv);
-    OMP_private.P2.resize(OMP_private.lenght_k,  Ncv,Ncv);
-    OMP_private.P2_dia.resize(OMP_private.lenght_k,  Ncv,Ncv);
+
+
     OMP_private.Pv.resize(OMP_private.lenght_k,  Ncv,Ncv);
 
     // population at previous step
@@ -177,13 +183,29 @@ MPI_Barrier(MPI_COMM_WORLD);
     OMP_private.Dk0.resize(nk, Ncv, Ncv);
     OMP_private.Dk1.resize(nk, Ncv, Ncv);
     OMP_private.Dk2.resize(nk, Ncv, Ncv);
-    
 
+    // saving indices of non zero dissipation matrix to OMP_private
+    OMP_private.n_diss_terms = n_diss_terms;
+    OMP_private.T_dissip_index_0.resize(n_diss_terms);
+    OMP_private.T_dissip_index_1.resize(n_diss_terms);
+    for (int jc=0; jc<n_diss_terms; jc++){
+        OMP_private.T_dissip_index_0[jc] = index_diss_term_0[jc];
+        OMP_private.T_dissip_index_1[jc] = index_diss_term_1[jc];
+    }
           
 
     // creating local variables
-
+    vec2d Delta_Heigen(OMP_private.lenght_k, Ncv);
+    vec2d H_eigen(OMP_private.lenght_k, Ncv);
+    
+    cx_mat Uk_arm; // temporary things for armadillo
+    cx_mat Hk_arm; // temporary things for armadillo
+    vec epsilon; // temporary things for armadillo
+    epsilon.zeros(Ncv);
+    Uk_arm.zeros(Ncv, Ncv);
+    Hk_arm.zeros(Ncv, Ncv);
     for (int ik = OMP_private.begin_count; ik < OMP_private.end_count; ik++){ // all local wave vectors
+        OMP_private.k[ik - OMP_private.begin_count][0] = kpt[ik][0];
         OMP_private.k[ik - OMP_private.begin_count][1] = kpt[ik][1];
         OMP_private.k[ik - OMP_private.begin_count][2] = kpt[ik][2];
         OMP_private.integrWeight[ik - OMP_private.begin_count] = integrWeight[ik];
@@ -192,9 +214,9 @@ MPI_Barrier(MPI_COMM_WORLD);
 
 
         for (int jc=0; jc<Ncv; jc++){ //  over bands
-            if (jc < (Ncv-1)) OMP_private.P_dia_prev[ik - OMP_private.begin_count][jc][jc] = 1.0;
+            if (jc < (Nb[0]+Nb[1])) OMP_private.P_dia_prev[ik - OMP_private.begin_count][jc][jc] = 1.0;
             for (int ic=0; ic<Ncv; ic++){ //
-
+                
                 OMP_private.P0[ik - OMP_private.begin_count][ic][jc] = P0[ik][ic][jc];
                 OMP_private.Hk[ik - OMP_private.begin_count][ic][jc] = Hamiltonian[ik][ic][jc];
                 OMP_private.Hk_renorm[ik - OMP_private.begin_count][ic][jc] = OMP_private.Hk[ik - OMP_private.begin_count][ic][jc];
@@ -206,12 +228,28 @@ MPI_Barrier(MPI_COMM_WORLD);
                 OMP_private.Dk0[ik][ic][jc] = Dipole[ik][ic][jc][0];
                 OMP_private.Dk1[ik][ic][jc] = Dipole[ik][ic][jc][1];
                 OMP_private.Dk2[ik][ic][jc] = Dipole[ik][ic][jc][2];
+
+                Hk_arm(ic, jc) = OMP_private.Hk[ik - OMP_private.begin_count][ic][jc];
                 
                 for (int id=0; id< 3; id++){
                     OMP_private.Dk[id][ik - OMP_private.begin_count][ic][jc] = Dipole[ik][ic][jc][id];
                 }
             }
         }
+        eig_sym(epsilon, Uk_arm, Hk_arm); // diagonalization
+        H_eigen[ik - OMP_private.begin_count][0] = epsilon(0);
+        for (int ic=1; ic<Ncv; ic++ ){
+            H_eigen[ik - OMP_private.begin_count][ic] = epsilon(ic);
+            Delta_Heigen[ik - OMP_private.begin_count][ic] = epsilon(ic) - epsilon(ic-1);
+        
+
+            if (Delta_Heigen[ik - OMP_private.begin_count][ic] < 1e-16){
+                cout << "ic " << ic << "   Delta_Heigen" << Delta_Heigen[ik - OMP_private.begin_count][ic] << endl;
+            }
+        }
+
+        
+
     }
 
     // create_noneq_population(OMP_private, P0, H_Eigen); // creates initial population in conduction band
@@ -236,6 +274,7 @@ MPI_Barrier(MPI_COMM_WORLD);
 
     // struct with trigonometric functions
     trig_coefficients trig_k_omp;
+    trig_k_omp.Sample_orientation = Coulomb_set.Sample_orientation; // by default in yz plane and is 011
     get_trig_coef(trig_k_omp, OMP_private.k, Ncut, OMP_private.lenght_k);
 
     vector<vec1d> EF_pr(2); // private for each thread, 
@@ -284,6 +323,20 @@ MPI_Barrier(MPI_COMM_WORLD);
                 Coulomb_set.X_ss0[m] =Coulomb_set.X_ss[m];
             }    // end of creation equilibrium coulomb part
         }
+
+        int ik; // position in shared variable
+        for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++) // loop over position in private variable
+        {
+            ik = ik_pr + OMP_private.begin_count; // coordinate in global array
+            // store initial populations:
+            for (int ic=0; ic<Ncv; ic++){// summation over bands   // 
+                for (int jc=0; jc<Ncv; jc++){ // summation over bands
+                        OMP_private.P_Wannier_0[ik_pr][ic][jc] = P0[ik][ic][jc];
+                        OMP_private.P_Bloch_0[ik_pr][ic][jc] = OMP_private.P_diag[ik][ic][jc];
+                }
+            }
+        }
+        #pragma omp barrier
         
     } // fi Coulomb
     
@@ -343,5 +396,7 @@ MPI_Barrier(MPI_COMM_WORLD);
 
 // compilation on desktop:
 // mpicxx main_MPI.cpp  -fopenmp -I/usr/include/python2.7 -lpython2.7 -larmadillo -I./headers
+// mpicxx main_MPI.cpp  -fopenmp  -larmadillo -I./headers
 // export OMP_NUM_THREADS=7
 //  mpirun -np 1 ./a.out input.txt
+//mpirun ../../mpicbwe.x input.txt 1> output.log 2> output.err

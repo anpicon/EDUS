@@ -387,26 +387,23 @@ complexd Wannier::dipolez(int& ic, int& jc, Coord_B& k)
 
 void Wannier::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)    
 {
-    Coord_B ktemp;
-    ktemp.set_crys(k.crys[2],k.crys[0],k.crys[1]);
     for(int ic = 0; ic < _Ncv; ic++)
     {
         for(int jc = 0; jc<_Ncv; jc++)
         {
-            //H[ic][jc] = energy(ic, jc, k);
-            H[ic][jc] = energy(ic, jc, ktemp);
+            H[ic][jc] = energy(ic, jc, k);
             if(ic==jc) 
             {
 		          H[ic][jc].imag(0.);
             }      
         }
     }
-    //vector<int> ix(3);
-    //for(int icoor=0; icoor<3; icoor++)
-    //{
-    //  ix[icoor] = (int)floor(fmod((k.crys[icoor])*Nk[icoor],Nk[icoor]));
-    //  while(ix[icoor] < 0) ix[icoor]+=1;
-    //}  
+    vector<int> ix(3);
+    for(int icoor=0; icoor<3; icoor++)
+    {
+      ix[icoor] = (int)floor(fmod((k.crys[icoor])*Nk[icoor],Nk[icoor]));
+      while(ix[icoor] < 0) ix[icoor]+=1;
+    }  
     Uk.fill(0.);
     //if(!Singularity[ix[2]+Nk[2]*ix[1]+Nk[2]*Nk[1]*ix[0]]) 
     ////if(Singularity[ix[2]+Nk[2]*ix[1]+Nk[2]*Nk[1]*ix[0]] || !Singularity[ix[2]+Nk[2]*ix[1]+Nk[2]*Nk[1]*ix[0]]) 
@@ -437,9 +434,30 @@ void Wannier::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)
     vec epsilon;
     cx_mat U;
     cx_mat Hw; 
+    complex<double> H_aver;
+    double Hermit_check;
     epsilon.zeros(_Ncv-_Nch);
     U.zeros(_Ncv-_Nch, _Ncv-_Nch);
     Hw.zeros(_Ncv-_Nch, _Ncv-_Nch);
+
+    // force to be hermitian
+    // for (int ic=0; ic<_Ncv; ic++){// summation over bands
+    //     for (int jc=ic+1; jc<_Ncv; jc++){ // summation over bands
+    //         Hermit_check = abs(H[ic][jc] - conj(H[jc][ic]));
+    //         if (Hermit_check > 1e-17){
+    //             cout << "Non-Hermitian Hamiltonian " << " ic=" << ic<< " jc=" << jc << " |H-H*|=" << Hermit_check << endl;
+    //         }
+    //         H_aver = (H[ic][jc] + conj(H[jc][ic]))/ 2.0;
+    //         H[ic][jc] = H_aver;
+    //         H[jc][ic] = conj(H_aver);
+
+    //         Hermit_check = abs(H[ic][jc] - conj(H[jc][ic]));
+    //         if (Hermit_check > 1e-30){
+    //             cout << "After_symmetr " << " ic=" << ic<< " jc=" << jc << " |H-H*|=" << Hermit_check << endl;
+    //         }
+
+    //     }
+    // }
     //copy the Ek matrix in an armadillo matrix
     for (int ic=0; ic<_Ncv-_Nch; ic++)
     {
@@ -448,6 +466,8 @@ void Wannier::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)
             Hw(ic, jc) = H[ic+_Nch][jc+_Nch];
         }
     }
+
+
     eig_sym(epsilon, U, Hw);
 
   Uk.fill(0.);
@@ -485,18 +505,13 @@ void  Wannier::energy(vec2x& H, Coord_B& k)
 
 void  Wannier::dipole(vec3x& Dx, Coord_B& k)
 {
-    Coord_B ktemp;
-    ktemp.set_crys(k.crys[2],k.crys[0],k.crys[1]);
     for(int ic = 0; ic < _Ncv; ic++)
     {
         for(int jc = 0; jc<_Ncv; jc++)
         {
-            Dx[ic][jc][0] = dipolex(ic, jc, ktemp);
-            Dx[ic][jc][1] = dipoley(ic, jc, ktemp);
-            Dx[ic][jc][2] = dipolez(ic, jc, ktemp);
-            //Dx[ic][jc][0] = dipolex(ic, jc, k);
-            //Dx[ic][jc][1] = dipoley(ic, jc, k);
-            //Dx[ic][jc][2] = dipolez(ic, jc, k);
+            Dx[ic][jc][0] = dipolex(ic, jc, k);
+            Dx[ic][jc][1] = dipoley(ic, jc, k);
+            Dx[ic][jc][2] = dipolez(ic, jc, k);
             if(ic==jc) 
               for(int i=0; i<3; i++) Dx[ic][jc][i].imag(0.);
         }

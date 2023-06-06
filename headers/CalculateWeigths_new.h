@@ -27,7 +27,7 @@ void CalculateWeigths_new(vec2d& kpt, vector<double>& Weigths, vector<vector<vec
 			bool IsInShells = false;
 			ktest.setcrys(kpt[ik][0], kpt[ik][1], kpt[ik][2]);
 			for(int i=0; i<min.size()-1; i++)
-				IsInShells = IsInShells || (ktest.norm() <= min[i]+1.e-08);
+				IsInShells = IsInShells || (ktest.norm() <= min[i]+1.e-11);
 
 			if(!IsInShells && ktest.norm() < min.back())
 				min[min.size()-1] = ktest.norm();
@@ -40,7 +40,7 @@ void CalculateWeigths_new(vec2d& kpt, vector<double>& Weigths, vector<vector<vec
 		for(int ik=0; ik<kpt.n1(); ik++)
 		{ 
 			ktest.setcrys(kpt[ik][0], kpt[ik][1], kpt[ik][2]);
-			if( abs(ktest.norm() - min[min.size()-1]) < 1.e-08 )
+			if( abs(ktest.norm() - min[min.size()-1]) < 1.e-11 )
 			{
 				vector<double> kcart(3);
 				for(int i=0; i<3; i++) kcart[i] = ktest.cart[i];
@@ -97,7 +97,7 @@ void CalculateWeigths_new(vec2d& kpt, vector<double>& Weigths, vector<vector<vec
 		mat Sinv(Bvector.size(),21);           Sinv.zeros();
 		bool LinearDependent = false;
 		for(int index=0; index<s.size(); index++)
-			if(abs(s(index)) < 1.e-08) LinearDependent = true;
+			if(abs(s(index)) < 1.e-11) LinearDependent = true;
 			else Sinv(index,index)=1./s(index);
 		//w = V*Sinv*U.t()*q;
 	        w=pinv(A,1.e-16)*q;

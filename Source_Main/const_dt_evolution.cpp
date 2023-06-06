@@ -11,7 +11,7 @@ for(int it_pr=iti;it_pr<=itfi;it_pr++)
     }
     #pragma omp barrier
 
-    if ((it-iti) % it_resolution == 0){   
+    if (it % it_resolution == 0){   
         #include "if_resolution.cpp" // printig all we need
     } // end if it_resolution
     

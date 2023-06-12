@@ -13,7 +13,7 @@ class multivec1D {
     public:
     multivec1D(){ }
     //copy constructor
-    multivec1D(const multivec1D<T>& src) {this->data= make_unique<T[]>(src._n1); for(int i=0; i<src._n1; i++) this->data[i] = src.data[i];}
+    multivec1D(const multivec1D<T>& src) : _n1(src._n1) {this->data= make_unique<T[]>(src._n1); for(int i=0; i<src._n1; i++) this->data[i] = src.data[i];}
     multivec1D(int n1): _n1(n1) {
         data= make_unique<T[]>(_n1);
     }

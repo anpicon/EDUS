@@ -41,6 +41,10 @@ int main (int argc, char* argv[])
     }
 
     int nktot = Nk[0]*Nk[1]*Nk[2];
+    Diff_Eq.Nk_total_All_Grid = nktot;
+    Diff_Eq.Nk_2 = Nk[2];
+    Diff_Eq.Nk_1 = Nk[1];
+    Diff_Eq.Nk_0 = Nk[0];
     vector<Message> message;
     
     // here we calculate indices, grid kpt and nk on each CPU
@@ -102,6 +106,8 @@ int main (int argc, char* argv[])
 
     // }// START WITH NON-EQUILIBRIUM STATE
 
+
+Diff_Eq.Nk_node_MPI = nk;
 MPI_Barrier(MPI_COMM_WORLD);
 #pragma omp parallel // num_threads(3)
 {
@@ -109,7 +115,6 @@ MPI_Barrier(MPI_COMM_WORLD);
     //private for each omp thread
     Private_omp_parameters OMP_private;
 
-    
     OMP_private.thr_id = omp_get_thread_num();
     OMP_private.thr_total = omp_get_num_threads();
     // in every thread define border, where we operate
@@ -313,7 +318,7 @@ MPI_Barrier(MPI_COMM_WORLD);
             Calculate_X_coefficients_MPI(OMP_private.P_diag, OMP_private,  
                 Ncv, Coulomb_set, root_rank, rank_, trig_k_omp);
         }
-        
+        #pragma omp barrier
         #pragma omp master
         {
             for (int m = 0; m < Ncut*Ncut*Ncv*Ncv; m++ ){ //row summation over Fourier series
@@ -322,6 +327,11 @@ MPI_Barrier(MPI_COMM_WORLD);
                 Coulomb_set.X_sc0[m] =Coulomb_set.X_sc[m];
                 Coulomb_set.X_ss0[m] =Coulomb_set.X_ss[m];
             }    // end of creation equilibrium coulomb part
+            for (int ic=0; ic<Ncv; ic++){// summation over bands
+                Coulomb_set.E_Hartree0[ic] = Coulomb_set.E_Hartree[ic];
+                if (rank_ == root_rank) cout << "ic= " << ic << "   Coulomb_set.E_Hartree0[ic] = "  << Coulomb_set.E_Hartree0[ic]*energy_au_eV << " eV" << endl;
+            }
+            
         }
 
         int ik; // position in shared variable

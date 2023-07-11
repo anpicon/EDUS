@@ -3,12 +3,15 @@ struct Coulomb_parameters {
   bool Coulomb_calc; // by default it false, if we don't initialize in in input file
   int Ncut; // number of terms in Fourier series
   vec2x A, B, C, D; // coefficients of Fourier transform
+  vec2x V_Hartree; //Hartree term correction \sum e^{G(ts - tm)} V_{RK}(G)
 
   int N_BZ_points_total;
 
   vec1x X_cc, X_sc, X_cs, X_ss; // coefficients for Fourier transformed potential
   vec1x X_cc0, X_sc0, X_cs0, X_ss0; // coefficients for Fourier transformed potential
 //  vec2x cos_nx_crys, sin_nx_crys, cos_ny_crys, sin_ny_crys; // matrices of cos and sin in crystal basis
+  vec1d E_Hartree;
+  vec1d E_Hartree0;
   vec3x P_static;
   vec3x Xk_storage;
   vec3x P0_dia, P_dkx, P_dky, P_d2kx, P_d2ky,  P_dky_dkx;
@@ -16,6 +19,7 @@ struct Coulomb_parameters {
 
   double qTF; // Thomas-Fermi screening
   double epsilon_static;
+  double G_distance; // size of a shell for sum over G vector for Coulomb 
   double max;
   double min;
   double n_cond;
@@ -25,11 +29,15 @@ struct Coulomb_parameters {
   // [1] - d^2 /dx^2 // [2] - d^2/dy^2 // [3] - d^2/(dxdy) 
 
   vec1x f_cc, f_sc, f_cs, f_ss;
+
   double test;
   bool Wannie_basis;
   bool Diagonal_basis;
   bool Rytova_Keldysh;
   bool Print_new_band_dispersion;
+  bool Hartree_calculation;
+  bool Calculate;
+  bool Read_from_files;
   string Sample_orientation; // by default in yz plane and is 011
   double r0; // R-K polarizability parameter
 
@@ -41,85 +49,55 @@ struct Coulomb_parameters {
   ofstream Ek_file;
   ofstream P_stream;
   ofstream exciton_file;
+  string labelInput;
   vec1d Taylor_Delta_Pk_max, Taylor_alpha_max;
   double Taylor_Pv_max;
 
 };
 
 
-// function to make borders smooth
-double falpha(double alpha, double q_cut, double q){
-  double f = 1.0 / (exp(- alpha * (q_cut - abs(q)) ) + 1 );
-  return f;
-}
-
-
-
-
-
-
 // Thomas Fermi potential
 double Coloumb_THh_F(Coord_B& k1, double qx, double qy, double qTF, double eps_area, 
-            double r0, double Vbord_x, double Vbord_y, double V_corner,
-            bool Rytova_Keldysh){
+            double r0, bool Rytova_Keldysh){
 
     double Num, Den;
 
     double q_mod = k1.dot(k1); 
-    // double q_border = 0.2; // borderline where we use Thomas-Fermi screening
-
-
-    // function to make borders smooth
-    // double alpha = 250;
-    // double fx = falpha(alpha, q_cut, qx);
-    // double fy = falpha(alpha, q_cut, qy);
-    // double f_m_x = falpha(-alpha, q_cut, qx);
-    // double f_m_y = falpha(-alpha, q_cut, qy);
+    Num = 2* M_PI;
 
     if(Rytova_Keldysh){
-        // double r0 = 18.89726; //a.u. BN on quarz Henriques et al https://doi.org/10.1088/1361-648X/ab47b3
+        // r0 by default see variables.cpp
         //double eps1 = 2.4; // quarz Henrique 2019 
-        double eps1 = 1; // vacuum Galvani 2016, Ridolfi 2019
-        Num = 2* M_PI;
-        //if (q_mod < q_border)
-        // {
-        //   q_mod += qTF*qTF;
-
-        // }
+        double eps1 = 1.0; // vacuum Galvani 2016, Ridolfi 2019
+        
         Den = eps_area * sqrt(q_mod + qTF*qTF)*( sqrt(q_mod) * r0 +  eps1);
 
     } else{ // simpe 1/q potential
-
-
-        Num= 1; // just model random numbers to debug
-        //  double Den= pow((qx/2),2) + pow((sqrt(3.0)*qx/2 + qy),2) + qTF*qTF;
         Den= eps_area*sqrt(q_mod + qTF*qTF);
     }
 
 
     double Vq = Num/Den;
-    // potential should be 0 in the borders as a periodic function
-    // Vq *= fx * fy;
-    // Vq += Vbord_x * f_m_x * fy + Vbord_y * f_m_y * fx +  V_corner * f_m_x * f_m_y;
 
     return Vq;
 }
 
 
 // in parallel region
-void Create_Wq_with_G_sum(vec3x &Wq, int Ncv, vec1d  &q,
-    int & iq_loc, int & qx_global,int &  qy_global,
+void Create_Wq_with_G_sum(vec2x &Wq, int Ncv, double qx, double qy,
     vec2d & Displacement_orb, int & G_num, 
-    bool Rytova_Keldysh, double q_cut, double Vbord_x, double Vbord_y, double V_corner,
-    double qTF, double eps0, int N_sum, 
-    Coulomb_parameters & Coulomb_set, vec2d & G_vec){
+    double qTF, 
+    Coulomb_parameters & Coulomb_set, vec2d & G_vec, Coord_B& k1, double &Re_Vq_max_eV,double &Im_Vq_max_eV,double  &Re_Vq_min_eV,double &Im_Vq_min_eV){
+ 
 
 
-    Coord_B k1; 
-
-
-    double Vq, phi;
-
+    double Vq, phi, qTF_G;
+    
+    Re_Vq_max_eV = -1e10;
+    Im_Vq_max_eV = -1e10;
+    Re_Vq_min_eV = 1e10;
+    Im_Vq_min_eV = 1e10;
+    Wq.fill(0.0);
     complex<double> Vph_q, phase_q;  // Vq bare Coulomb, Wq ater exponent and G summation
 
 
@@ -127,23 +105,33 @@ void Create_Wq_with_G_sum(vec3x &Wq, int Ncv, vec1d  &q,
         // sum over neighbouring unit cells to make potential symmetric
     for (int i_G = 0; i_G < G_num; i_G++){
         if (Coulomb_set.Sample_orientation == "011"){ // sample yz
-            k1.setcrys(0.0, q[qx_global] + G_vec[i_G][0], q[qy_global] + G_vec[i_G][1]); //to create k-points in crystal coordinates for phase and Coulomb
+            k1.setcrys(0.0, qx + G_vec[i_G][0], qy + G_vec[i_G][1]); //to create k-points in crystal coordinates for phase and Coulomb
         } else if (Coulomb_set.Sample_orientation == "110"){ // sample in xy
-            k1.setcrys( q[qx_global] + G_vec[i_G][0], q[qy_global] + G_vec[i_G][1] , 0.0); //to create k-points in crystal coordinates for phase and Coulomb
+            k1.setcrys( qx + G_vec[i_G][0], qy + G_vec[i_G][1] , 0.0); //to create k-points in crystal coordinates for phase and Coulomb
         }
+        if (Coulomb_set.Hartree_calculation and (G_vec[i_G][0] + G_vec[i_G][1]) < 1e-16){
+            Vq = 0.0;
 
-        
-        
-        Vq = Coloumb_THh_F(k1, q[qx_global], q[qy_global],  qTF,  eps0, 
-                                        Coulomb_set.r0, Vbord_x, Vbord_y, V_corner, Rytova_Keldysh);// 2D Simpson coefficient and Coloumb
+            // if ((G_vec[i_G][0] + G_vec[i_G][1]) > 0) qTF_G = 0.0; // No Thomas-Fermi outside first BZ
+        } else{ 
+            Vq = Coloumb_THh_F(k1, qx, qy,  
+                            qTF,  // Thomas-Fermi screening parameter
+                            Coulomb_set.epsilon_static,// \epsilon* A
+                            Coulomb_set.r0, Coulomb_set.Rytova_Keldysh);// Thomas-Fermi Coloumb
+        }
      
 
         int index_linear;
         for (int ic=0; ic<Ncv; ic++){// summation over bands
             for (int jc=ic; jc<Ncv; jc++){ // summation over bands
                 index_linear = ic*Ncv + jc;
-                if (ic == 0 and jc == 0){
-                    Wq[iq_loc][ic][jc] += Vq;
+                if ((ic + jc) == 0){
+                    // if (Coulomb_set.Hartree_calculation) { 
+                    //     Wq[ic][jc] = 0.0; // we don't have diagonal Hartree terms
+                    // } else{
+                        Wq[ic][jc] += Vq;
+                    // }
+                    
 
                 }
                 if(jc != ic){
@@ -156,20 +144,29 @@ void Create_Wq_with_G_sum(vec3x &Wq, int Ncv, vec1d  &q,
                     phase_q =  exp(c1 * phi);
                     //real coefficients contain A and D Coefficients when imaginary contain B and C coefficients  
                     Vph_q = Vq * phase_q;
-                    Wq[iq_loc][ic][jc] += Vph_q;
+                    Wq[ic][jc] += Vph_q;
 
                 }
             }
         }
+
+        for (int ic=0; ic<Ncv; ic++){// summation over bands
+            if (ic > 0) Wq[ic][ic] = Wq[0][0];
+            for (int jc=ic; jc<Ncv; jc++){ // summation over bands
+                if(abs(real(Wq[ic][jc])) > Re_Vq_max_eV) Re_Vq_max_eV = abs(real(Wq[ic][jc]));
+                if(abs(imag(Wq[ic][jc])) > Im_Vq_max_eV) Im_Vq_max_eV = abs(imag(Wq[ic][jc]));
+
+                if(abs(real(Wq[ic][jc])) < Re_Vq_min_eV and abs(real(Wq[ic][jc])) > 1e-13) Re_Vq_min_eV = abs(real(Wq[ic][jc]));
+                if(abs(imag(Wq[ic][jc])) < Im_Vq_min_eV and abs(imag(Wq[ic][jc])) > 1e-13) Im_Vq_min_eV = abs(imag(Wq[ic][jc]));
+
+            }
+        }
     }
 
-
-    // for (int ic=0; ic<Ncv; ic++){// summation over bands
-    //     for (int jc=ic+1; jc<Ncv; jc++){ // summation over bands
-    //         Wq[iq_loc][jc][ic] = conj(Wq[iq_loc][ic][jc]);
-    //     }
-    // }
-
+    Re_Vq_max_eV *= energy_au_eV;
+    Im_Vq_max_eV *= energy_au_eV;
+    Re_Vq_min_eV *= energy_au_eV;
+    Im_Vq_min_eV *= energy_au_eV;
 
 }
 
@@ -178,70 +175,52 @@ void Create_Wq_with_G_sum(vec3x &Wq, int Ncv, vec1d  &q,
 
 
 // integrations to get Fourier series coefficients. Input: m,n - order of term, ABCD result coefficient, N_sum Number of points, q - array of 1d grid, sp_arr - array of simpson coefficients
-double Four_integr_Coloumb(int m, int n, vec2x  &AD, int N_sum, 
-    vec1d  &q, vec1d  &sp_arr, 
-    int & begin_count, int & end_count, int & lenght_q,
-     vec3x& Wq, int Ncv){
+void Four_integr_Coloumb(double & mq, double & nq, vec2x  &AD, int N_sum, 
+    double  &spxy,  // Simpson matrix element
+    vec2x& Wq, int Ncv, int m, int n){
 
     AD.fill(0.0);
-    double Coef=0.0;
+
     // integral in simpson method
-    int iq_global, qx_global, qy_global;
-    double trigm_cos,trigm_sin, trign_cos,trign_sin, spxy, mq, nq, dA, dD, dB, dC;
+    double trigm_cos,trigm_sin, trign_cos,trign_sin, dA, dD, dB, dC;
     complex<double> Vq;
     int index_linear, index_linear_tr;
 
+    trigm_cos = cos(mq); // cos(2pi m qx)
+    trigm_sin = sin(mq); // sin(2pi m qx)
+    trign_cos = cos(nq); // cos(2pi n qy)
+    trign_sin = sin(nq); // sin(2pi n qy)
 
-    for (int iq_loc = 0; iq_loc < lenght_q; iq_loc++){// create 2d simpson array
-        iq_global = begin_count + iq_loc;
-        qx_global = iq_global / (N_sum); // integer division
-        qy_global = iq_global % (N_sum); // leftover; doesn't matter which is x and y
-
-
-        spxy=sp_arr[iq_loc];
-        mq=2* M_PI * m * q[qx_global];
-        nq=2* M_PI * n * q[qy_global];
-        trigm_cos = cos(mq); // cos(2pi m qx)
-        trigm_sin = sin(mq); // sin(2pi m qx)
-        trign_cos = cos(nq); // cos(2pi m qy)
-        trign_sin = sin(nq); // sin(2pi m qy)
-
-        dA = 4 * spxy * trigm_cos * trign_cos;
-        dD = 4 * spxy * trigm_sin * trign_sin;
-        dB = 4 * spxy * trigm_cos * trign_sin;
-        dC = 4 * spxy * trigm_sin * trign_cos;
+    dA = 4 * spxy * trigm_cos * trign_cos;
+    dD = 4 * spxy * trigm_sin * trign_sin;
+    dB = 4 * spxy * trigm_cos * trign_sin;
+    dC = 4 * spxy * trigm_sin * trign_cos;
 
 
-        
-        for (int ic=0; ic<Ncv; ic++){// summation over bands
-            for (int jc=ic; jc<Ncv; jc++){ // summation over bands
+    
+    for (int ic=0; ic<Ncv; ic++){// summation over bands
+        for (int jc=ic; jc<Ncv; jc++){ // summation over bands
 
-                index_linear = ic*Ncv + jc;
-                Vq = Wq[iq_loc][ic][jc];
-                if (ic == 0 and jc == 0){
-                    //diagonal only for 0,0
-                    AD[0][0] += Vq * dA; // diagonal elements, all the same because no phase here
-                    AD[3][0] += Vq * dD;
-                }
-                if(jc != ic){
-                         
-                    AD[0][index_linear] += dA * Vq;
-                    AD[1][index_linear] += dB * Vq;
-                    AD[2][index_linear] += dC * Vq;
-                    AD[3][index_linear] += dD * Vq;
+            index_linear = ic*Ncv + jc;
+            Vq = Wq[ic][jc];
+            if (ic == 0 and jc == 0){
+                //diagonal only for 0,0
+                AD[0][0] += Vq * dA; // diagonal elements, all the same because no phase here
+                AD[3][0] += Vq * dD;
+            }
+            if(jc != ic){
+                     
+                AD[0][index_linear] += dA * Vq;
+                AD[1][index_linear] += dB * Vq;
+                AD[2][index_linear] += dC * Vq;
+                AD[3][index_linear] += dD * Vq;
 
-                }
             }
         }
     }
-          
 
+      
 
-
-
-
-        
-    
     for (int i1=0; i1<AD.n1(); i1++){
         for(int i2=0; i2<AD.n2(); i2++){ //
             if (m==0 && n==0){ 
@@ -253,17 +232,6 @@ double Four_integr_Coloumb(int m, int n, vec2x  &AD, int N_sum,
         }
     }
 
-    // for (int i1=0; i1<AD.n1(); i1++){
-    //     for (int ic=0; ic<Ncv; ic++){// summation over bands
-    //         for (int jc=ic+1; jc<Ncv; jc++){ // summation over bands
-    //             index_linear = ic*Ncv + jc;
-    //             index_linear_tr = jc*Ncv + ic;
-    //             AD[i1][index_linear_tr] = conj(AD[i1][index_linear]);
-    //         }
-    //     }
-    // }
-
-    return 0;
 }
 
 
@@ -329,160 +297,181 @@ void Calculate_X_coefficients_MPI(
 
   #pragma omp barrier
 
-  for (int mm =0; mm< Ncut*Ncut; mm++ ){ //row summation over Fourier series
-    int m = mm / Ncut; // integer division
-    int n = mm % Ncut; // leftover   
-    f_cc.fill(0.); // fill f with zeros for summation
-    f_cs.fill(0.);
-    f_sc.fill(0.);
-    f_ss.fill(0.);
-    if (OMP_private.id_masters[OMP_private.thr_total - 1]) Coulomb_set.f_ss.fill(0.); // shared memory
-    if (OMP_private.id_masters[OMP_private.thr_total - 2]) Coulomb_set.f_cc.fill(0.);
-    if (OMP_private.id_masters[OMP_private.thr_total - 3]) Coulomb_set.f_sc.fill(0.);
-    if (OMP_private.id_masters[OMP_private.thr_total - 4]) Coulomb_set.f_cs.fill(0.);
+    for (int mm =0; mm< Ncut*Ncut; mm++ ){ //row summation over Fourier series
+        int m = mm / Ncut; // integer division
+        int n = mm % Ncut; // leftover   
+        f_cc.fill(0.); // fill f with zeros for summation
+        f_cs.fill(0.);
+        f_sc.fill(0.);
+        f_ss.fill(0.);
+        if (OMP_private.id_masters[OMP_private.thr_total - 1]) Coulomb_set.f_ss.fill(0.); // shared memory
+        if (OMP_private.id_masters[OMP_private.thr_total - 2]) Coulomb_set.f_cc.fill(0.);
+        if (OMP_private.id_masters[OMP_private.thr_total - 3]) Coulomb_set.f_sc.fill(0.);
+        if (OMP_private.id_masters[OMP_private.thr_total - 4]) Coulomb_set.f_cs.fill(0.);
 
-    // correction terms come from fast oscillations of sin and cos
-    // we have \int P * cos(pi* m* kx) * sin (pi* n* kx)
-    corr_trig = - 4* M_PI * M_PI *(m*m + n*n )/(N_BZ* 27) ;// 
-    // we also neglect everything linear in m and n or that doesn't contain it
-    // since our population function is smooth and slow
-    // we can analytically integrate trigonometrics between points assuming that population is constant there (neglecting P' and P'')
-    // for example, Nk=200, m = 10, n = 10
-    // corr_trig = - 4 *pi*pi*(100+100)/ (200*200*27) = -0.0073
-    // not so small!
-    // corr_trig= 0.;
-      // if (id_masters[thr_total - 4] == true) Coulomb_set.test = 0.0;
-    // #pragma omp barrier
-    
-      for (int ik=0; ik<OMP_private.lenght_k; ik++){ // summation over k-vectors
+        // correction terms come from fast oscillations of sin and cos
+        // we have \int P * cos(pi* m* kx) * sin (pi* n* kx)
+        corr_trig = - 4* M_PI * M_PI *(m*m + n*n )/(N_BZ* 27) ;// 
+        // we also neglect everything linear in m and n or that doesn't contain it
+        // since our population function is smooth and slow
+        // we can analytically integrate trigonometrics between points assuming that population is constant there (neglecting P' and P'')
+        // for example, Nk=200, m = 10, n = 10
+        // corr_trig = - 4 *pi*pi*(100+100)/ (200*200*27) = -0.0073
+        // not so small!
+        // corr_trig= 0.;
+          // if (id_masters[thr_total - 4] == true) Coulomb_set.test = 0.0;
+        // #pragma omp barrier
         
-        // integrWeight_ik = OMP_private.integrWeight[ik];
-        cos_cos_mn = trig_k.cos_mkx[m*OMP_private.lenght_k + ik] * trig_k.cos_nky[n*OMP_private.lenght_k + ik];
-        cos_sin_mn = trig_k.cos_mkx[m*OMP_private.lenght_k + ik] * trig_k.sin_nky[n*OMP_private.lenght_k + ik];
-        sin_cos_mn = trig_k.sin_mkx[m*OMP_private.lenght_k + ik] * trig_k.cos_nky[n*OMP_private.lenght_k + ik];
-        sin_sin_mn = trig_k.sin_mkx[m*OMP_private.lenght_k + ik] * trig_k.sin_nky[n*OMP_private.lenght_k + ik];
-        
+        for (int ik=0; ik<OMP_private.lenght_k; ik++){ // summation over k-vectors
+
+            // integrWeight_ik = OMP_private.integrWeight[ik];
+            cos_cos_mn = trig_k.cos_mkx[m*OMP_private.lenght_k + ik] * trig_k.cos_nky[n*OMP_private.lenght_k + ik];
+            cos_sin_mn = trig_k.cos_mkx[m*OMP_private.lenght_k + ik] * trig_k.sin_nky[n*OMP_private.lenght_k + ik];
+            sin_cos_mn = trig_k.sin_mkx[m*OMP_private.lenght_k + ik] * trig_k.cos_nky[n*OMP_private.lenght_k + ik];
+            sin_sin_mn = trig_k.sin_mkx[m*OMP_private.lenght_k + ik] * trig_k.sin_nky[n*OMP_private.lenght_k + ik];
 
 
-        //  #pragma omp simd !!!
 
-        for (int ic=0; ic<Ncv; ic++){// summation over bands
-          for (int jc=ic; jc<Ncv; jc++){ // summation over bands
-
-              // see section in notes
-            P_current =  integrWeight_ik * P[ik + OMP_private.begin_count][ic][jc]; // not to call element of large array many times            
-
-            f_cc[ic*Ncv + jc] += P_current * cos_cos_mn* (1. + corr_trig);
-            f_cs[ic*Ncv + jc] += P_current * cos_sin_mn* (1. + corr_trig);
-            f_sc[ic*Ncv + jc] += P_current * sin_cos_mn* (1. + corr_trig);
-            f_ss[ic*Ncv + jc] += P_current * sin_sin_mn* (1. + corr_trig);
-
-
-          }// summation over bands
-        }// summation over bands
-      } // // summation over k-vectors
-      //  created f coefficients for this particular (m,n) and band [ic][jc]
-   
-    #pragma omp barrier
-    // summing local f_ into shared f_
-    #pragma omp critical
-    { // summation over threads
-
-      for (int ic=0; ic<Ncv; ic++){// summation over bands
-        for (int jc=ic; jc<Ncv; jc++){ // summation over bands OMP
-          Coulomb_set.f_ss[ic*Ncv + jc] += f_ss[ic*Ncv + jc];
-          Coulomb_set.f_cc[ic*Ncv + jc] += f_cc[ic*Ncv + jc];
-          Coulomb_set.f_sc[ic*Ncv + jc] += f_sc[ic*Ncv + jc];
-          Coulomb_set.f_cs[ic*Ncv + jc] += f_cs[ic*Ncv + jc];
-
-          
-        }
-      }
-    }
-   #pragma omp barrier
-   //if (id_masters[thr_total - 1] == true) std::cout << " Coulomb_set.test after " << Coulomb_set.test  << endl << endl;
-    
-
-  #pragma omp master
-  {
-  // cout << f_cc[0][1*Ncv + 1] << endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-    // this function sums all elements of vec2x objects
-    // result is stored in root_rank memory
-    MPI_reduce_vec1x(Coulomb_set.f_cc, root_rank, my_rank, Ncv*Ncv);
-    MPI_reduce_vec1x(Coulomb_set.f_cs, root_rank, my_rank, Ncv*Ncv);
-    MPI_reduce_vec1x(Coulomb_set.f_sc, root_rank, my_rank, Ncv*Ncv); 
-    MPI_reduce_vec1x(Coulomb_set.f_ss, root_rank, my_rank, Ncv*Ncv);  
-    // cout << f_cc[0][1*Ncv + 1] << endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-  } // omp master
-  
-  
-
-    #pragma omp barrier
-    if (my_rank == root_rank) { 
-        
-        #pragma omp master
-        {
-         
-
-            int index_dia, index_offdia;
-            complexd Amn = 0.0;// = Coulomb_set.A[mm];
-            complexd Bmn = 0.0;// = Coulomb_set.D[mm];
-            complexd Cmn = 0.0;// = Coulomb_set.A[mm];
-            complexd Dmn = 0.0;// = Coulomb_set.D[mm];
+            //  #pragma omp simd !!!
             for (int ic=0; ic<Ncv; ic++){// summation over bands
                 for (int jc=ic; jc<Ncv; jc++){ // summation over bands
-                    
-                    index_dia = ic*Ncv + jc;
-                    index_offdia = jc*Ncv + ic;
 
-                    if (ic == jc){
-                        Amn = Coulomb_set.A[mm][0];
-                        Dmn = Coulomb_set.D[mm][0];
-                    } else{
-                        Amn = Coulomb_set.A[mm][index_dia];
-                        Bmn = Coulomb_set.B[mm][index_dia];
-                        Cmn = Coulomb_set.C[mm][index_dia];
-                        Dmn = Coulomb_set.D[mm][index_dia];
-                    }
+                  // see section in notes
+                P_current =  integrWeight_ik * P[ik + OMP_private.begin_count][ic][jc]; // not to call element of large array many times            
+
+                f_cc[ic*Ncv + jc] += P_current * cos_cos_mn* (1. + corr_trig);
+                f_cs[ic*Ncv + jc] += P_current * cos_sin_mn* (1. + corr_trig);
+                f_sc[ic*Ncv + jc] += P_current * sin_cos_mn* (1. + corr_trig);
+                f_ss[ic*Ncv + jc] += P_current * sin_sin_mn* (1. + corr_trig);
 
 
-
-
-                    Coulomb_set.X_cc[mm*Ncv*Ncv + index_dia] =  (Amn* Coulomb_set.f_cc[index_dia] + Dmn* Coulomb_set.f_ss[index_dia]) - Coulomb_set.X_cc0[mm*Ncv*Ncv +index_dia];
-                    if(jc != ic){ // for off diagonal part we have additional imaginary term which includes B and C coeff
-                        Coulomb_set.X_cc[mm*Ncv*Ncv + index_dia] += (Bmn* Coulomb_set.f_cs[index_dia] + Cmn* Coulomb_set.f_sc[index_dia]);
-                        Coulomb_set.X_cc[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_cc[mm*Ncv*Ncv + index_dia]);
-                    }
-
-                    Coulomb_set.X_cs[mm*Ncv*Ncv +index_dia] =  (Amn* Coulomb_set.f_cs[index_dia] - Dmn* Coulomb_set.f_sc[index_dia]) - Coulomb_set.X_cs0[mm*Ncv*Ncv +index_dia];
-                    if(jc != ic){
-                        Coulomb_set.X_cs[mm*Ncv*Ncv + index_dia] += (-Bmn* Coulomb_set.f_cc[index_dia] + Cmn* Coulomb_set.f_ss[index_dia]);
-                        Coulomb_set.X_cs[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_cs[mm*Ncv*Ncv +index_dia]);
-                    }
-
-                    Coulomb_set.X_sc[mm*Ncv*Ncv +index_dia] =  (Amn* Coulomb_set.f_sc[index_dia] - Dmn* Coulomb_set.f_cs[index_dia]) - Coulomb_set.X_sc0[mm*Ncv*Ncv +index_dia];
-                    if(jc != ic){
-                        Coulomb_set.X_sc[mm*Ncv*Ncv + index_dia] += (Bmn* Coulomb_set.f_ss[index_dia] - Cmn* Coulomb_set.f_cc[index_dia]);
-                        Coulomb_set.X_sc[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_sc[mm*Ncv*Ncv +index_dia]);
-                    }
-
-                    Coulomb_set.X_ss[mm*Ncv*Ncv +index_dia] =  (Amn* Coulomb_set.f_ss[index_dia] + Dmn* Coulomb_set.f_cc[index_dia]) - Coulomb_set.X_ss0[mm*Ncv*Ncv +index_dia];
-                    if(jc != ic){
-                        Coulomb_set.X_ss[mm*Ncv*Ncv + index_dia] += (-Bmn* Coulomb_set.f_sc[index_dia] - Cmn* Coulomb_set.f_cs[index_dia]);
-                        Coulomb_set.X_ss[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_ss[mm*Ncv*Ncv +index_dia]);
-                    }
                 }// summation over bands
             }// summation over bands
-          
-        }// omp master
+        } // // summation over k-vectors
+        //  created f coefficients for this particular (m,n) and band [ic][jc]
+   
+        #pragma omp barrier
+        // summing local f_ into shared f_
+        #pragma omp critical
+        { // summation over threads
 
-    } //if (my_rank == root_rank)
+            for (int ic=0; ic<Ncv; ic++){// summation over bands
+                for (int jc=ic; jc<Ncv; jc++){ // summation over bands OMP
+                    Coulomb_set.f_ss[ic*Ncv + jc] += f_ss[ic*Ncv + jc];
+                    Coulomb_set.f_cc[ic*Ncv + jc] += f_cc[ic*Ncv + jc];
+                    Coulomb_set.f_sc[ic*Ncv + jc] += f_sc[ic*Ncv + jc];
+                    Coulomb_set.f_cs[ic*Ncv + jc] += f_cs[ic*Ncv + jc];
+                }
+            }
+        }
+        #pragma omp barrier
+        //if (id_masters[thr_total - 1] == true) std::cout << " Coulomb_set.test after " << Coulomb_set.test  << endl << endl;
 
-    #pragma omp barrier
 
-  } //Fourier series
+        #pragma omp master
+        {
+            // cout << f_cc[0][1*Ncv + 1] << endl;
+            MPI_Barrier(MPI_COMM_WORLD);
+            // this function sums all elements of vec2x objects
+            // result is stored in root_rank memory
+            MPI_reduce_vec1x(Coulomb_set.f_cc, root_rank, my_rank, Ncv*Ncv);
+            MPI_reduce_vec1x(Coulomb_set.f_cs, root_rank, my_rank, Ncv*Ncv);
+            MPI_reduce_vec1x(Coulomb_set.f_sc, root_rank, my_rank, Ncv*Ncv); 
+            MPI_reduce_vec1x(Coulomb_set.f_ss, root_rank, my_rank, Ncv*Ncv);  
+            // cout << f_cc[0][1*Ncv + 1] << endl;
+            MPI_Barrier(MPI_COMM_WORLD);
+        } // omp master
+
+        if (mm == 0){ // Hartree term correction to diagonal term \sum V_Hartree(m,s) f_{s}(t) 
+            #pragma omp barrier
+            #pragma omp master
+            {
+                Coulomb_set.E_Hartree.fill(0.);
+                MPI_Barrier(MPI_COMM_WORLD);
+                 if (my_rank == root_rank) {
+                    
+                    for (int ic=0; ic<Ncv; ic++){// summation over bands
+                        for (int jc=0; jc<Ncv; jc++){ // summation over bands OMP
+                            Coulomb_set.E_Hartree[ic] += real(Coulomb_set.f_cc[jc*Ncv + jc]) * real(Coulomb_set.V_Hartree[ic][jc]);
+
+                        }
+                        Coulomb_set.E_Hartree[ic] -= Coulomb_set.E_Hartree0[ic];
+                        // cout << "ic= " << ic << "   Coulomb_set.E_HartreeInFunction[ic] = "<< setprecision(20)  << Coulomb_set.E_Hartree[ic] << endl;
+                    }
+                }
+            }
+            #pragma omp barrier
+            #pragma omp master
+            {
+                MPI_Barrier(MPI_COMM_WORLD);
+                MPI_Bcast(& Coulomb_set.E_Hartree[0], Ncv, MPI_DOUBLE, root_rank, MPI_COMM_WORLD);
+                MPI_Barrier(MPI_COMM_WORLD);
+            }
+        }
+
+        #pragma omp barrier
+        if (my_rank == root_rank) { 
+            
+            #pragma omp master
+            {
+             
+
+                int index_dia, index_offdia;
+                complexd Amn = 0.0;// = Coulomb_set.A[mm];
+                complexd Bmn = 0.0;// = Coulomb_set.D[mm];
+                complexd Cmn = 0.0;// = Coulomb_set.A[mm];
+                complexd Dmn = 0.0;// = Coulomb_set.D[mm];
+                for (int ic=0; ic<Ncv; ic++){// summation over bands
+                    for (int jc=ic; jc<Ncv; jc++){ // summation over bands
+                        
+                        index_dia = ic*Ncv + jc;
+                        index_offdia = jc*Ncv + ic;
+
+                        if (ic == jc){
+                            Amn = Coulomb_set.A[mm][0];
+                            Dmn = Coulomb_set.D[mm][0];
+                        } else{
+                            Amn = Coulomb_set.A[mm][index_dia];
+                            Bmn = Coulomb_set.B[mm][index_dia];
+                            Cmn = Coulomb_set.C[mm][index_dia];
+                            Dmn = Coulomb_set.D[mm][index_dia];
+                        }
+
+
+
+                        Coulomb_set.X_cc[mm*Ncv*Ncv + index_dia] =  (Amn* Coulomb_set.f_cc[index_dia] + Dmn* Coulomb_set.f_ss[index_dia]) - Coulomb_set.X_cc0[mm*Ncv*Ncv +index_dia];
+                        if(jc != ic){ // for off diagonal part we have additional imaginary term which includes B and C coeff
+                            Coulomb_set.X_cc[mm*Ncv*Ncv + index_dia] += (Bmn* Coulomb_set.f_cs[index_dia] + Cmn* Coulomb_set.f_sc[index_dia]);
+                            Coulomb_set.X_cc[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_cc[mm*Ncv*Ncv + index_dia]);
+                        }
+
+                        Coulomb_set.X_cs[mm*Ncv*Ncv +index_dia] =  (Amn* Coulomb_set.f_cs[index_dia] - Dmn* Coulomb_set.f_sc[index_dia]) - Coulomb_set.X_cs0[mm*Ncv*Ncv +index_dia];
+                        if(jc != ic){
+                            Coulomb_set.X_cs[mm*Ncv*Ncv + index_dia] += (-Bmn* Coulomb_set.f_cc[index_dia] + Cmn* Coulomb_set.f_ss[index_dia]);
+                            Coulomb_set.X_cs[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_cs[mm*Ncv*Ncv +index_dia]);
+                        }
+
+                        Coulomb_set.X_sc[mm*Ncv*Ncv +index_dia] =  (Amn* Coulomb_set.f_sc[index_dia] - Dmn* Coulomb_set.f_cs[index_dia]) - Coulomb_set.X_sc0[mm*Ncv*Ncv +index_dia];
+                        if(jc != ic){
+                            Coulomb_set.X_sc[mm*Ncv*Ncv + index_dia] += (Bmn* Coulomb_set.f_ss[index_dia] - Cmn* Coulomb_set.f_cc[index_dia]);
+                            Coulomb_set.X_sc[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_sc[mm*Ncv*Ncv +index_dia]);
+                        }
+
+                        Coulomb_set.X_ss[mm*Ncv*Ncv +index_dia] =  (Amn* Coulomb_set.f_ss[index_dia] + Dmn* Coulomb_set.f_cc[index_dia]) - Coulomb_set.X_ss0[mm*Ncv*Ncv +index_dia];
+                        if(jc != ic){
+                            Coulomb_set.X_ss[mm*Ncv*Ncv + index_dia] += (-Bmn* Coulomb_set.f_sc[index_dia] - Cmn* Coulomb_set.f_cs[index_dia]);
+                            Coulomb_set.X_ss[mm*Ncv*Ncv +index_offdia] = conj(Coulomb_set.X_ss[mm*Ncv*Ncv +index_dia]);
+                        }
+                    }// summation over bands
+                }// summation over bands
+              
+            }// omp master
+
+        } //if (my_rank == root_rank)
+
+        #pragma omp barrier
+
+    } //Fourier series
 
   
 

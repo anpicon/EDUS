@@ -160,7 +160,7 @@ void get_derivative_Df(
                             if (ic != jc){
                                 index_linear = ic*Ncv + jc;
                             } else {
-                                index_linear = 0;
+                                index_linear = 0; // all diagonal elements of Screen_const are equal. We calculate it only for band [0][0]
                             }
                             
                             Xk_W[ic][jc] -= conj(Coulomb_set.Screen_const[0][index_linear]) * (P[ik][jc][ic] - OMP_private.P_Wannier_0[ik_pr][jc][ic]);
@@ -207,6 +207,7 @@ void get_derivative_Df(
                 Xk_W[ic][ic] = real(Xk_W[ic][ic]);
                 for (int jc=ic; jc<Ncv; jc++){ // summation over bands
                     Hk[ic][jc] = OMP_private.Hk[ik_pr][ic][jc] + Xk_W[ic][jc]; 
+                    if (ic == jc) Hk[ic][ic] += (Coulomb_set.E_Hartree[ic]);
                     if (ic != jc) Hk[jc][ic] = conj(Hk[ic][jc]);
 
                     OMP_private.Hk_renorm[ik_pr][ic][jc] = Hk[ic][jc];

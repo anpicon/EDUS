@@ -949,7 +949,14 @@ void Read_Input
 			                      }
                             else if ( 0 ==strcasecmp(str[0].c_str(), "Current") ) iCurrent = true;
                             else if ( 0 ==strcasecmp(str[0].c_str(), "it_resolution") ) it_resolution = atof(str[1].c_str()); 
-                            else if ( 0 ==strcasecmp(str[0].c_str(), "PrintPopulation") ) Diff_Eq.PrintPopulation = true;
+                            else if ( 0 ==strcasecmp(str[0].c_str(), "PrintPopulation") ){
+                              Diff_Eq.PrintPopulation = true;
+                              if (str.size() > 1){
+                                Diff_Eq.start_print_time = atof(str[1].c_str()); // In a.u.!
+                                Diff_Eq.end_print_time = atof(str[2].c_str());
+                                Diff_Eq.step_print = atof(str[3].c_str());
+                              }
+                            } 
                             else if ( 0 ==strcasecmp(str[0].c_str(), "Coulomb_band_reconstruction") )   Coulomb_set.Coulomb_calc = true;
                             else if ( 0 ==strcasecmp(str[0].c_str(), "TransientAbsorption") || 0 ==strcasecmp(str[0].c_str(), "TAbs") ) iTAbs = true;
                             else if ( 0 ==strcasecmp(str[0].c_str(), "kresolvedTAbs") || 0 ==strcasecmp(str[0].c_str(), "kTAbs") || 0 ==strcasecmp(str[0].c_str(), "kTransientAbsorption") ) iTAbsK = true;
@@ -1023,6 +1030,9 @@ void Read_Input
                       if ( 0 ==strcasecmp(str[0].c_str(), "r0") ){ // ONLY a.u.!
                         Coulomb_set.r0 = atof(str[1].c_str());
                       }
+                      if ( 0 ==strcasecmp(str[0].c_str(), "G_distance") ){ // is size of BZ!
+                        Coulomb_set.G_distance = atof(str[1].c_str());
+                      }
                       if ( 0 ==strcasecmp(str[0].c_str(), "Rytova_Keldysh") ){
                         Coulomb_set.Rytova_Keldysh = true;
                       }
@@ -1033,6 +1043,15 @@ void Read_Input
                         Coulomb_set.Wannie_basis = false;
                         Coulomb_set.Diagonal_basis = true;
                       }
+                      if ( 0 ==strcasecmp(str[0].c_str(), "Read_Coulomb_from_files") ){
+                        Coulomb_set.Calculate = false; // By default we calculate caoefficients, but we can also read from file
+                        Coulomb_set.Read_from_files = true;
+                      }
+
+                      if ( 0 ==strcasecmp(str[0].c_str(), "labelInput") ){
+                       Coulomb_set.labelInput = str[1].c_str();
+                      }
+                      
                       if ( 0 ==strcasecmp(str[0].c_str(), "Print_new_band_dispersion") ){
                        Coulomb_set.Print_new_band_dispersion = true;
                       }

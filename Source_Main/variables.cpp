@@ -17,12 +17,17 @@
     bool iTAbsK=false; int nTAk=0;  vec2d TAkpt; vec1i tagTAk;
     bool iTAbs= true; 
     bool iCurrent=false;
+    bool Print_and_sort_k = true;
+    bool Print_initial_H_P = true;
     string iMode="none"; //bool iTightBinding=false; //string to define the model
 
     Coulomb_parameters Coulomb_set; // struct with Coulomb parameters
+
+
     Coulomb_set.Coulomb_calc = false;// by default it false, if we don't initialize in in input file
     Coulomb_set.qTF = 0.0;
     Coulomb_set.epsilon_static = 1.0;
+    Coulomb_set.G_distance = 50; // By default, will be multiplied on a sqrt(det(b)) where det(b) is a size of a BZ in cartesian
 
     Coulomb_set.Ncut = Ncut;
     Coulomb_set.test = 0.0;
@@ -34,8 +39,9 @@
     Coulomb_set.Sample_orientation = "011"; // by default in yz plane and is 011
     // Rytova-Keldysh polarizability parameter, by default
     Coulomb_set.r0 = 18.89726; //a.u. BN on quarz Henriques et al https://doi.org/10.1088/1361-648X/ab47b3
-
-
+    Coulomb_set.labelInput = "_";
+    Coulomb_set.Calculate = true; // By default we calculate caoefficients, but we can also read from file
+    Coulomb_set.Read_from_files = false;
 
 
     
@@ -72,6 +78,9 @@
     Diff_Eq.TaylorOrder = 8;// by default
     Diff_Eq.Taylor= false;// by default
     Diff_Eq.PrintPopulation = false;// by default
+    Diff_Eq.start_print_time = 0.0; // by default
+    Diff_Eq.end_print_time = 100.0* time_au_fs;
+    Diff_Eq.step_print = 20.0* time_au_fs;
     vec1d dt_prev;
     double max_dP = 0.0; // for dynamical dt
     double max_P =0.0; // for dynamical dt

@@ -28,6 +28,9 @@ void getSimpson2D(int N_sum, vec1d& simpWeight, vec1d  &q,  double border_BZ){
 	}
 }
 
+
+
+// simpson integration coefficients on a grid
 void getSimpson2D_MPI(int N_sum, vec1d& simpWeight, vec1d  &q,  double border_BZ, 
 	int & begin_count, int & end_count, int & lenght_q){
 	// create 2D simpson grid on a N_sum*N_sum lattice
@@ -51,8 +54,6 @@ void getSimpson2D_MPI(int N_sum, vec1d& simpWeight, vec1d  &q,  double border_BZ
 	lenght_q = end_count - begin_count;
 	q.resize(N_sum);
 	simpWeight.resize(lenght_q);
-
-
 
 
 	vec1d sp_arr_k(N_sum);     // allocate auxilary 1d simpson array
@@ -151,13 +152,13 @@ void get_trig_coef(trig_coefficients & trig, vec2d & k,
 	#pragma omp for schedule(dynamic)
 	for (int m =0; m< Ncut; m++){
 
-	  for (int ik=0; ik<n; ik++){ //row summation over Fourier series
+	  for (int ik=0; ik<n; ik++){ //
 
         if (trig.Sample_orientation == "011"){ // sample yz
-					mkx=2* M_PI * m * (k[ik][1]); // NORMAL (PREVIOUS) POSITION
+					mkx=2* M_PI * m * (k[ik][1]); // 
 					nky=2* M_PI * m * (k[ik][2]);
         } else if (trig.Sample_orientation == "110"){ // sample in xy
- 					mkx=2* M_PI * m * (k[ik][0]); // NORMAL (PREVIOUS) POSITION
+ 					mkx=2* M_PI * m * (k[ik][0]); // 
 					nky=2* M_PI * m * (k[ik][1]);
         }
 

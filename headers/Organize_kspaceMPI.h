@@ -41,10 +41,10 @@ void Organize_kspace(vector<vector<int>>& ik_central, vector<vector<vector<int>>
 
 	cout << "rank_ " << rank_ << ": I have " << ik_central[rank_].size() << " k points in this cpu\n";
     stringstream sname; sname << rank_;
-    ofstream fp_wf; fp_wf.open("kpt_" + sname.str() + ".txt");
-    for(int ik : ik_central[rank_])
-    	fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
-    fp_wf.close();
+    // ofstream fp_wf; fp_wf.open("kpt_" + sname.str() + ".txt");
+    // for(int ik : ik_central[rank_])
+    // 	fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
+    // fp_wf.close();
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
@@ -97,27 +97,27 @@ void Organize_kspace(vector<vector<int>>& ik_central, vector<vector<vector<int>>
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-	fp_wf.open("kptcenter_" + sname.str() + ".txt");
-    for(int ik : ik_central[rank_])
-    	fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
-	fp_wf.close();
+	// fp_wf.open("kptcenter_" + sname.str() + ".txt");
+    // for(int ik : ik_central[rank_])
+    // 	fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
+	// fp_wf.close();
 	
-	for(int irank_1=0; irank_1<num_procs; irank_1++)
-	{	
-		stringstream sname1; sname1 << irank_1;
-		fp_wf.open("kptborder_"+ sname.str()+ sname1.str() +".txt");
-    	for(int ik : ik_border[rank_][irank_1])
-    		fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
-		fp_wf.close();
-	}
-	for(int irank_1=0; irank_1<num_procs; irank_1++)
-	{	
-		stringstream sname1; sname1 << irank_1;
-		fp_wf.open("kptextern_"+ sname.str()+ sname1.str() +".txt");
-    	for(int ik : ik_external[rank_][irank_1])
-    	fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
-		fp_wf.close();
-	}
+	// for(int irank_1=0; irank_1<num_procs; irank_1++)
+	// {	
+	// 	stringstream sname1; sname1 << irank_1;
+	// 	fp_wf.open("kptborder_"+ sname.str()+ sname1.str() +".txt");
+    // 	for(int ik : ik_border[rank_][irank_1])
+    // 		fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
+	// 	fp_wf.close();
+	// }
+	// for(int irank_1=0; irank_1<num_procs; irank_1++)
+	// {	
+	// 	stringstream sname1; sname1 << irank_1;
+	// 	fp_wf.open("kptextern_"+ sname.str()+ sname1.str() +".txt");
+    // 	for(int ik : ik_external[rank_][irank_1])
+    // 	fp_wf << ik << " " <<kpt[ik][0] << " " << kpt[ik][1] << " " << kpt[ik][2] << endl;
+	// 	fp_wf.close();
+	// }
 
 }
 
@@ -288,14 +288,14 @@ void CalculateIndicesMPI(vec2d& kpt, vector<vector<vector<int>>>& GradientIndex,
 	    ofstream test;     stringstream srank; srank << rank_;
 
     
-	    test.open("mpi_info_"+ srank.str() + ".txt");
-	    for(Message& temp : message)
-	    {
-	    	test << setw(10) <<"tag " << temp.tag << " "; 
-	    	test << setw(10) << (temp.send ? "send " : "receive ");
-	    	test << setw(10) << temp.partner_rank << " " << temp.buf << " " << temp.count;
-	    	test << endl;
-	    }	
+	    // test.open("mpi_info_"+ srank.str() + ".txt");
+	    // for(Message& temp : message)
+	    // {
+	    // 	test << setw(10) <<"tag " << temp.tag << " "; 
+	    // 	test << setw(10) << (temp.send ? "send " : "receive ");
+	    // 	test << setw(10) << temp.partner_rank << " " << temp.buf << " " << temp.count;
+	    // 	test << endl;
+	    // }	
 	}
     MPI_Barrier(MPI_COMM_WORLD);
 }

@@ -2,7 +2,7 @@
 //
 void Print_vec3x_MPI(vec3x& P, int ic, int jc,  double& time,
      Private_omp_parameters& OMP_private,
-     Coulomb_parameters& Coulomb_set,
+     Coulomb_parameters& Coulomb_set, methods_Diff_Eq &Diff_Eq,
      string& label, int it){
     #pragma omp barrier
     #pragma omp master
@@ -26,26 +26,55 @@ void Print_vec3x_MPI(vec3x& P, int ic, int jc,  double& time,
 
     #pragma omp barrier
     int ik; // position in shared variable
-    for (int i = 0; i < OMP_private.thr_total; i++){
-        for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++){
-            ik = ik_pr + OMP_private.begin_count;
 
-            // shared array to print in file 
-            Coulomb_set.Pk_shared[ik] = P[ik][ic][jc];
-        }
+    for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++){
+        ik = ik_pr + OMP_private.begin_count;
+
+        // shared array to print in file 
+        Coulomb_set.Pk_shared[ik] = P[ik][ic][jc];
     }
+    
+    #pragma omp barrier
+    #pragma omp master
+    { // rearrange k- points for printing
+        vec1x Array_temp(Coulomb_set.Pk_shared.n1());
+
+        int nk_y = Diff_Eq.Nk_node_MPI / (Diff_Eq.Nk_1 * Diff_Eq.Nk_0);
+        int nk_x = Diff_Eq.Nk_1 * Diff_Eq.Nk_0;
+        if (Diff_Eq.Nk_1 > Diff_Eq.Nk_2){
+            nk_y = Diff_Eq.Nk_node_MPI / (Diff_Eq.Nk_1 * Diff_Eq.Nk_2);
+            nk_x = Diff_Eq.Nk_1 * Diff_Eq.Nk_2;
+        }
+
+
+        for (int ik = 0; ik < Diff_Eq.Nk_node_MPI; ik++){ // all wave vectors
+            int i_kx = ik / nk_x;
+            int i_ky = ik % nk_x;
+            // if (rank_ == 0) cout << "i_kx=" << i_kx <<  " i_ky=" << i_ky << " Diff_Eq.k_index[i_kx]=" << Diff_Eq.k_index[i_kx] << "   Diff_Eq.k_index[i_kx]*nk_x + i_ky=" << Diff_Eq.k_index[i_kx]*nk_x + i_ky <<  endl;
+            Array_temp[ik] = Coulomb_set.Pk_shared[Diff_Eq.k_index[i_kx]*nk_x + i_ky];
+        }
+        // if (rank_ == 0) cout << "Copy arr" << endl;
+        for (int ik = 0; ik < Diff_Eq.Nk_node_MPI; ik++){ // all wave vectors
+            Coulomb_set.Pk_shared[ik] = Array_temp[ik];
+        }
+
+    }
+
 
     #pragma omp barrier
 
     #pragma omp master
     {   
         MPI_Barrier(MPI_COMM_WORLD);
-        int Nk_node = Coulomb_set.Pk_shared.n1();
+        int Nk_node = Diff_Eq.Nk_node_MPI; // every MPI process gets number of points on node
         vec1x * Pk_print = & Coulomb_set.Pk_shared; // pointer to object
         vec1x Pk_receive; // variable, where we store what we will receive
-        
+        Pk_receive.resize(Nk_node);
+        vec1x Array_print(Diff_Eq.Nk_total_All_Grid);
+        Array_print.fill(0.0);
+        int ik_MPI = 0;
         for (int i_proc = 0; i_proc < num_procs; i_proc++){
-            
+            MPI_Barrier(MPI_COMM_WORLD);
             if (i_proc > 0){
                 // sending array to 0 node and then print
 
@@ -53,52 +82,47 @@ void Print_vec3x_MPI(vec3x& P, int ic, int jc,  double& time,
                 if (rank_ == i_proc){ // send
                     // destination - 0
                     MPI_Send(&Nk_node, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-                    // cout << "0" << endl;
                 }
                 if (rank_ == 0){ // receive
                     // source - process number i_proc
-                    // cout << "Nk_node old" << Nk_node << endl;
                     MPI_Recv(&Nk_node, 1, MPI_INT, i_proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     Pk_receive.resize(Nk_node);
-                    // cout << "1" << endl;
-                    // cout << "Nk_node new" << Nk_node << endl;
                 }
 
-                
-
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+            if (i_proc > 0){
                 if (rank_ == i_proc){ // send array
                     // destination - 0
                     MPI_Send(& Coulomb_set.Pk_shared[0], Nk_node, MPI_C_DOUBLE_COMPLEX, 0, 0, MPI_COMM_WORLD);
-                    // cout << "2" << endl;
                 }
                 if (rank_ == 0){ // receive
                     // source - process number i_proc
+                    Pk_receive.fill(0.0);
                     MPI_Recv(& Pk_receive[0], Nk_node, MPI_C_DOUBLE_COMPLEX, i_proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    // cout << "3" << endl;
-                    Pk_print = & Pk_receive;
-                    // cout << "4" << endl;
                 }
             } // if (i_proc > 0)
-             
+            MPI_Barrier(MPI_COMM_WORLD); 
             if (rank_ == 0){ // only rank 0 prints!
                 for(int ik = 0; ik < Nk_node; ik++){
-                    Coulomb_set.P_stream << setprecision(16)  << real((*Pk_print)[ik]) << " ";
-                    Coulomb_set.P_stream  << imag((*Pk_print)[ik]) << endl;
+                    if (i_proc > 0) Array_print[ik_MPI] = Pk_receive[ik];
+                    if (i_proc == 0) Array_print[ik_MPI] = Coulomb_set.Pk_shared[ik];
+                    ik_MPI+=1;
                 }
             }
             MPI_Barrier(MPI_COMM_WORLD);
         }
-    }
+        MPI_Barrier(MPI_COMM_WORLD);
+        // first we create array, than print it, to avoid printing errors 
+        if (rank_ == 0){ // only rank 0 prints!
+            for(int ik = 0; ik < Diff_Eq.Nk_total_All_Grid; ik++){ 
+                Coulomb_set.P_stream << real(Array_print[ik]) << " ";
+                    Coulomb_set.P_stream  << imag(Array_print[ik]) << endl;
+            }
 
-
-
-
-
-    #pragma omp master
-    {
-        if (rank_ == 0){ 
             Coulomb_set.P_stream.close();
         }
+        MPI_Barrier(MPI_COMM_WORLD);
     }
     
     #pragma omp barrier
@@ -514,6 +538,69 @@ void PrintTransientAbsMPI(int&nk,int& nktot,ofstream& fp_J, vec3x& P, double& ti
     }
     MPI_Barrier(MPI_COMM_WORLD);
 }
+
+
+void find_index_min(vec1d& k_temp, int &ik_min){
+    double min_k = 1e15;
+    ik_min = 0;
+    for (int ik = 0; ik < k_temp.n1(); ik++){ // all wave vectors
+        // yes it's quite stupid way to do this, but we have to do it once only for small array
+        if (k_temp[ik] < min_k){
+            min_k = k_temp[ik];
+            ik_min = ik;
+        }
+    }
+    k_temp[ik_min] = 1e15;
+
+}
+
+
+
+
+
+void Create_sorted_indices_k_MPI(vec2d& kpt, methods_Diff_Eq &Diff_Eq){
+
+    int i_kx, i_ky, ik_min;
+    int pol = 1;
+
+    int nk_y = Diff_Eq.Nk_node_MPI / (Diff_Eq.Nk_1 * Diff_Eq.Nk_0);
+    int nk_x = Diff_Eq.Nk_1 * Diff_Eq.Nk_0;
+
+    if (Diff_Eq.Nk_1 > Diff_Eq.Nk_2){
+        pol = 0; // find polarization
+        nk_y = Diff_Eq.Nk_node_MPI / (Diff_Eq.Nk_1 * Diff_Eq.Nk_2);
+        nk_x = Diff_Eq.Nk_1 * Diff_Eq.Nk_2;
+    }
+    // if (rank_ == 0) cout << "nk_x= " << nk_x << " nk_y= " << nk_y << endl;
+    Diff_Eq.k_index.resize(nk_y);
+    
+    vec1d k_temp(nk_y);
+    for (int ik = 0; ik < Diff_Eq.Nk_node_MPI; ik++){ // all wave vectors
+
+        i_kx = ik / nk_x;
+        i_ky = ik % nk_x;
+        if (rank_ == 0){
+            // cout << "ik= " << ik << "      i_kx =" << i_kx << " kpt[ik][pol]=" << kpt[ik][pol]<< endl;
+        }
+        if (i_ky == 0){
+            k_temp[i_kx] = kpt[ik][pol];
+        }
+        
+    }
+
+    for (int ik = 0; ik < nk_y; ik++){ // all wave vectors
+        if (rank_ == 0){
+            // cout << "ik= " << ik << "      k_temp[ik] =" << k_temp[ik] << endl;
+        }
+        find_index_min(k_temp, ik_min);
+        Diff_Eq.k_index[ik] = ik_min;
+    }
+
+
+}
+
+
+
 
 
 

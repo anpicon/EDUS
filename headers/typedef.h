@@ -50,6 +50,9 @@ struct methods_Diff_Eq{
   double epsStepAbs;
   int TaylorOrder;
   bool PrintPopulation;
+  double start_print_time, end_print_time, step_print;
+  vec1i k_index;
+  int Nk_total_All_Grid, Nk_0, Nk_1, Nk_2, Nk_node_MPI;
 };
 
 
@@ -58,6 +61,7 @@ struct Private_omp_parameters{
   int thr_id;
   int thr_total;
   int lenght_k;
+  int Nk_total_MPI, Nk_node_MPI;
   // P_diag - population in basis where equilibrium energy is diagonal
   // P_eigen -  population in basis where non-equlibrium hamiltonian is diagonal, 
   // different from P_diag only if we have Coulomb term
@@ -93,6 +97,8 @@ struct Private_omp_parameters{
   vec1i T_dissip_index_0, T_dissip_index_1; 
   int n_diss_terms;
 };
+
+
 
 
 double round_to_digits(double value, int digits)

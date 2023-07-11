@@ -9,15 +9,12 @@ void CalculateWeigths_new(vec2d& kpt, vector<double>& Weigths, vector<vector<vec
 	bool ShellsAreEnough = false;
 	Coord_B ktest; 
         int ShellCounter = 0;
-    printf("\n\n\n\n*********************************************************************************************\n");
-    printf("*                                   Shell calculation                                       *\n");
-    printf("*********************************************************************************************\n");
-
-
-
-
-	printf("*         | Shell |                Bvectors              |   Norm    | norm(q1-q) | Dependent? |         *");
-
+        if (rank_ == 0){
+		printf("\n\n\n\n*********************************************************************************************\n");
+		printf("*                                   Shell calculation                                       *\n");
+		printf("*********************************************************************************************\n");
+		printf("*         | Shell |                Bvectors              |   Norm    | norm(q1-q) | Dependent? |         *");
+	}
 	while(!ShellsAreEnough)
 	{
 		//1. Look for next minimum
@@ -105,33 +102,38 @@ void CalculateWeigths_new(vec2d& kpt, vector<double>& Weigths, vector<vector<vec
 		for(int i=0; i<w.size(); i++)
 			Weigths[i] = w(i,0);
 		mat q1 = A*w;
-		printf("\n*         -------------------------------------------------------------------------         *");
-        for(int ib=0; ib<Bvector[Shell].size(); ib++)
-        		printf(  "\n*         |  %3i  |   % 8.5f    % 8.5f    % 8.5f   | % 8.5f  |  %5.2e  |    %3s     |         *", Shell, 
-        			Bvector[Shell][ib][0],Bvector[Shell][ib][1], Bvector[Shell][ib][2], 
-        			sqrt(pow(Bvector[Shell][ib][0],2)+pow(Bvector[Shell][ib][1],2)+pow(Bvector[Shell][ib][2],2)),norm(q1-q), LinearDependent?"YES":"NO");
+		if (rank_ == 0){
+			printf("\n*         -------------------------------------------------------------------------         *");
+        	}
+        	for(int ib=0; ib<Bvector[Shell].size(); ib++)
+        		if (rank_ == 0){
+				printf(  "\n*         |  %3i  |   % 8.5f    % 8.5f    % 8.5f   | % 8.5f  |  %5.2e  |    %3s     |         *", Shell, 
+        				Bvector[Shell][ib][0],Bvector[Shell][ib][1], Bvector[Shell][ib][2], 
+        				sqrt(pow(Bvector[Shell][ib][0],2)+pow(Bvector[Shell][ib][1],2)+pow(Bvector[Shell][ib][2],2)),norm(q1-q), LinearDependent?"YES":"NO");
+			}
 
-        //4. Check if:
-        //   - The new shell is linear dependent on previous ones. If so, one of the singular values is very close to 0
-        //   - A*w = q is satisfied. If it isn't, we go forward adding other shells
-//		if(LinearDependent) 
-//		{
-//			Weigths.erase(Weigths.begin(), Weigths.end());
-//			Bvector.pop_back();
-//		}
-//                else
-			ShellCounter++;
+		//4. Check if:
+		//   - The new shell is linear dependent on previous ones. If so, one of the singular values is very close to 0
+		//   - A*w = q is satisfied. If it isn't, we go forward adding other shells
+		//		if(LinearDependent) 
+		//		{
+		//			Weigths.erase(Weigths.begin(), Weigths.end());
+		//			Bvector.pop_back();
+		//		}
+		//                else
+		ShellCounter++;
 		ShellsAreEnough = ( norm(q1-q)<1.e-07 );
 
 		//cout << "ShellsAreEnough? " << (int) ShellsAreEnough<< endl;
-		if(ShellCounter==8) 
+		if(ShellCounter==8 and (rank_ == 0)) 
 		{
 			printf("More than 8 shells needed. The program could be very slow!\n");
 			exit(1);
 		}
 	}
-
-	printf("\n*         -------------------------------------------------------------------------         *\n");
+	if(rank_ == 0){
+		printf("\n*         -------------------------------------------------------------------------         *\n");
+	}
 
 }//end of function CalculateWeigths
 

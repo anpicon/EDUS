@@ -125,6 +125,7 @@ void Current1(ofstream& fp_J1, Private_omp_parameters& OMP_private,
                 for (int ix=0; ix<3; ix++)
                     Ipriv[ix]+=P[ik][ic][jc]*GradientEnergy[ik][ic][jc][ix];
     }
+    #pragma omp barrier
     #pragma omp critical
     { // summation over threads
         for (int ix=0; ix<3; ix++){
@@ -141,6 +142,7 @@ void Current1(ofstream& fp_J1, Private_omp_parameters& OMP_private,
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Reduce(&I[0], &global_sum[0], 3, MPI_C_DOUBLE_COMPLEX, MPI_SUM, 0,
                MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
         if(rank_==0)
         {
             fp_J1 << setw(15) << setprecision(8) << time*time_au_fs;
@@ -166,6 +168,7 @@ void Current2(ofstream& fp_J2, Private_omp_parameters& OMP_private,
     }
     int ik;
     vec1x Ipriv(3); Ipriv.fill(0.);
+    #pragma omp barrier
     for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++)
     {
         ik = ik_pr + OMP_private.begin_count;
@@ -175,6 +178,7 @@ void Current2(ofstream& fp_J2, Private_omp_parameters& OMP_private,
                     for (int ix=0; ix<3; ix++)
                         Ipriv[ix]+=P[ik][ic][jc]*Hamiltonian[ik][ic][kc]*conj(Dipole[ik][jc][kc][ix]);
     }
+    #pragma omp barrier
     #pragma omp critical
     { // summation over threads
         for (int ix=0; ix<3; ix++){
@@ -188,8 +192,10 @@ void Current2(ofstream& fp_J2, Private_omp_parameters& OMP_private,
             I[ix] *= (dk[0]*dk[1]*dk[2]/det_a);
         
         vec1x global_sum(3);
+        MPI_Barrier(MPI_COMM_WORLD);
         MPI_Reduce(&I[0], &global_sum[0], 3, MPI_C_DOUBLE_COMPLEX, MPI_SUM, 0,
                MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
         if(rank_==0)
         {
             fp_J2 << setw(15) << setprecision(8) << time*time_au_fs;

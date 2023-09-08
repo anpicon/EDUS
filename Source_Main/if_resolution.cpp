@@ -250,31 +250,52 @@ if ( Diff_Eq.PrintPopulation and print_matrices_in_kspace)// ((it-iti) % (500*it
          label, icont); // icont - the same number as in in Ec
     }
 
+    // label = "P_val_cond_in_Bloch";
+    // Print_vec3x_MPI(OMP_private.P_diag, Ncv-2, Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set, Diff_Eq,
+    //  label, icont); // icont - the same number as in in Ec
+
     label = "P_val_cond_in_Bloch";
-    Print_vec3x_MPI(OMP_private.P_diag, Ncv-2, Ncv-1, scaled_t,
+    Print_vec3x_MPI(OMP_private.P_diag, 0, 1, scaled_t,
      OMP_private,
      Coulomb_set, Diff_Eq,
      label, icont); // icont - the same number as in in Ec
 
 
-    label = "P_Wannier_";
-    Print_vec3x_MPI(P0, Ncv-1, Ncv-1, scaled_t,
-     OMP_private,
-     Coulomb_set,Diff_Eq,
-     label, icont); // icont - the same number as in in Ec
 
-    label = "P_Wannier_";
-    Print_vec3x_MPI(P0, Ncv-2, Ncv-1, scaled_t,
-     OMP_private,
-     Coulomb_set,Diff_Eq,
-     label, icont); // icont - the same number as in in Ec
+    // label = "P_Wannier_";
+    // Print_vec3x_MPI(P0, Ncv-1, Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,Diff_Eq,
+    //  label, icont); // icont - the same number as in in Ec
 
-    label = "P_Wannier_";
-    Print_vec3x_MPI(P0, Ncv-2, Ncv-2, scaled_t,
-     OMP_private,
-     Coulomb_set,Diff_Eq,
-     label, icont); // icont - the same number as in in Ec
- 
+    // label = "P_Wannier_";
+    // Print_vec3x_MPI(P0, Ncv-2, Ncv-1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,Diff_Eq,
+    //  label, icont); // icont - the same number as in in Ec
+
+    // label = "P_Wannier_";
+    // Print_vec3x_MPI(P0, Ncv-2, Ncv-2, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,Diff_Eq,
+    //  label, icont); // icont - the same number as in in Ec
+
+
+    // label = "P_Wannier_core";
+    // Print_vec3x_MPI(P0, 0, 1, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,Diff_Eq,
+    //  label, icont); // icont - the same number as in in Ec
+
+    // label = "P_Wannier_core";
+    // Print_vec3x_MPI(P0, 0, 2, scaled_t,
+    //  OMP_private,
+    //  Coulomb_set,Diff_Eq,
+    //  label, icont); // icont - the same number as in in Ec
+
+    
 
 
 }
@@ -297,6 +318,12 @@ if (Print_initial_H_P){
 
     label = "H_Eigen_val_cond";
     Print_vec3x_MPI(H_Eigen, Ncv-2,Ncv-1, scaled_t,
+     OMP_private,
+     Coulomb_set,Diff_Eq,
+     label, it);
+
+    label = "H_Eigen_";
+    Print_vec3x_MPI(H_Eigen, Ncv-3,Ncv-3, scaled_t,
      OMP_private,
      Coulomb_set,Diff_Eq,
      label, it);
@@ -340,6 +367,19 @@ if (Print_initial_H_P){
      label, it); // icont - the same number as in in Ec
 
 
+    label = "P_initial_Wannier_core";
+    Print_vec3x_MPI(P0, 0, 1, scaled_t,
+     OMP_private,
+     Coulomb_set,Diff_Eq,
+     label, it); // icont - the same number as in in Ec
+
+    label = "P_initial_Wannier_core";
+    Print_vec3x_MPI(P0, 0, 2, scaled_t,
+     OMP_private,
+     Coulomb_set,Diff_Eq,
+     label, it); // icont - the same number as in in Ec
+
+
     label = "Uk_";
     Print_vec3x_MPI(Unitary, Ncv-1,Ncv-1, scaled_t,
      OMP_private,
@@ -351,10 +391,9 @@ if (Print_initial_H_P){
      OMP_private,
      Coulomb_set,Diff_Eq,
      label, it);
-    
+
     #pragma omp master
     {   
         Print_initial_H_P = false;
     }
-
 }

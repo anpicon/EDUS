@@ -275,31 +275,37 @@ void  Crystal::dipole(vec3x& Dx, Coord_B& k)
 
 void Crystal::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)    
 {
-	H.fill(0.);
-	for(int ic = 0; ic < H.n1(); ic++)
-	    for(int jc = 0; jc<H.n2(); jc++)
-	       H[ic][jc] = energy(ic, jc, k);
-	vec epsilon;
-	cx_mat U;
-	cx_mat Hw; 
-	epsilon.zeros(H.n1());
-	U.zeros(H.n1(), H.n1());
-	Hw.zeros(H.n1(), H.n1());
-	//copy the Ek matrix in an armadillo matrix
-	for (int ic=0; ic<H.n1(); ic++)
-	{
-	    for (int jc=0; jc <H.n2(); jc++)
-	    {
-	        Hw(ic, jc) = H[ic][jc];
-	        // Hw(ic, jc) *= 1.0e9 ;
-	    }
-	}
-	eig_sym(epsilon, U, Hw);
+    for(int ic = 0; ic < _Ncv; ic++)
+    {
+        for(int jc = 0; jc<_Ncv; jc++)
+        {
+            H[ic][jc] = energy(ic, jc, k);
+            if(ic==jc) 
+              {
+                H[ic][jc].imag(0.);
+              }      
+        }
+    }
 
-	Uk.fill(0.);
-	
-	for (int ic=0; ic<H.n1(); ic++)
-	    for (int jc=0; jc <H.n2() ; jc++)
-	        Uk[ic][jc]=conj(U(jc,ic));
-
+    //copy hamiltonian in U to get eigenvectors
+    for(int ic = 0; ic < _Ncv; ic++)
+    {
+        for(int jc = 0; jc<_Ncv; jc++)
+        {
+          Uk[ic][jc] = H[ic][jc];
+        }        
+    }
+    //V->compute eigenvalues and eigenvectors
+    std::vector<double> Energy(_Ncv);
+    MKL_INT info = LAPACKE_zheev( LAPACK_ROW_MAJOR, 'V', 'L', _Ncv, &(Uk[0][0]), _Ncv, &(Energy[0]) );
+    //get conjugate transpose for Uk
+    for(int ic=0; ic<_Ncv; ic++)
+    {
+         for(int jc = 0; jc<_Ncv; jc++)
+        {
+            complexd u = Uk[jc][ic];
+            Uk[jc][ic] = conj(Uk[ic][jc]);
+            Uk[ic][jc] = conj(u);
+        }
+    }
 }

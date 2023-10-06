@@ -5,19 +5,24 @@
 #include <cmath>
 #include <complex>
 #include <ctime>
-//#include <vector>
+
+#include <vector>
+#include <string.h>
 //#include <map>
 //#include <utility>
-#include <armadillo>
 #include <memory>
 
 
+
 using namespace std;
-using namespace arma;
 
 #include "BoostArrays.h"
 #include "Constants.h"
 #include "typedef.h"
+
+#define MKL_Complex16 complexd
+#include "mkl.h"
+
 #include "Coordinate.h" 
 #include "Laser_new.h"
 #include "crystal.h"

@@ -2,6 +2,18 @@
 #define COORDINATE
 
 
+double det(vec2d& mat)//works only if mat dim is 3x3 (SARRUS)
+{
+	double d = mat[0][0]*mat[1][1]*mat[2][2] +
+			   mat[1][0]*mat[2][1]*mat[0][2] +
+			   mat[2][0]*mat[0][1]*mat[1][2] -
+			   mat[0][2]*mat[1][1]*mat[2][0] -
+			   mat[1][2]*mat[2][1]*mat[0][0] -
+			   mat[2][2]*mat[0][1]*mat[1][0];
+	return d;	
+}
+
+
 class Coordinate 
 {
 	public:
@@ -67,53 +79,71 @@ double Coordinate::Jacobian;
 
 void Coordinate::set_crys_to_cart(vec2d& matrix)
 {	
-	mat MM(3,3);
-_M.resize(3,3); _M.fill(0.); _MI.resize(3,3); _MI.fill(0.);
+	//mat MM(3,3);
+	_M.resize(3,3); _M.fill(0.); _MI.resize(3,3); _MI.fill(0.);
 	for(int i=0; i<3; i++)
 	{
 		for(int j=0; j<3; j++)
 		{
 			_M[i][j] = matrix[j][i];
-			MM(i,j) = _M[i][j];
+			//MM(i,j) = _M[i][j];
+			_MI[i][j] = matrix[i][j];
 		}
 	}
-	mat invMM(3,3);
-	invMM=inv(MM);
-	for(int i=0; i<3; i++)
-	{
-		for(int j=0; j<3; j++)
-		{	
-			_MI[i][j] = invMM(i,j);
-		}
+	//mat invMM(3,3);
+	//invMM=inv(MM);
+	//LU factorization
+	std::array<int,3> IPIV ={0,1,2};
+    LAPACKE_dgetrf(LAPACK_ROW_MAJOR, 3, 3, 
+                   &(_MI[0][0]), 3, &IPIV[0]);  
 
-	}	
+	//inverse from LU
+    LAPACKE_dgetri(LAPACK_ROW_MAJOR, 3, &(_MI[0][0]),
+                    3, &IPIV[0]);
+	//for(int i=0; i<3; i++)
+	//{
+	//	for(int j=0; j<3; j++)
+	//	{	
+	//		_MI[i][j] = invMM(i,j);
+	//	}
+	//}	
 
-	Jacobian=abs(det(MM));
+	//Jacobian=abs(det(MM));
+	Jacobian=abs(det(_M));
 
 }
-
 
 
 void Coordinate::set_cart_to_crys(vec2d& matrix)
 {
 _M.resize(3,3); _M.fill(0.); _MI.resize(3,3); _MI.fill(0.);
-	mat MM(3, 3);
+	//mat MM(3, 3);
 	for(int i=0; i<3; i++)
 	{
 		for(int j=0; j<3; j++)	
 		{
 			_MI[i][j] = matrix[i][j];
-			MM(i,j) = _MI[i][j];
+			_M[i][j] = matrix[i][j];
+			//MM(i,j) = _MI[i][j];
 		}
 	}
-	mat invMM(3,3);
-	invMM=inv(MM);
-	for(int i=0; i<3; i++)
-	{
-		for(int j=0; j<3; j++)
-			_M[i][j] = invMM(i,j);
-	}	
-	Jacobian=abs(det(MM));
+	//LU factorization
+	std::array<int,3> IPIV ={0,1,2};
+    LAPACKE_dgetrf(LAPACK_ROW_MAJOR, 3, 3, 
+                   &(_M[0][0]), 3, &IPIV[0]);  
+
+	//inverse from LU
+    LAPACKE_dgetri(LAPACK_ROW_MAJOR, 3, &(_M[0][0]),
+                    3, &IPIV[0]);
+
+	//mat invMM(3,3);
+	//invMM=inv(MM);
+	//for(int i=0; i<3; i++)
+	//{
+	//	for(int j=0; j<3; j++)
+	//		_M[i][j] = invMM(i,j);
+	//}	
+	Jacobian=abs(det(_M));
 
 }
 

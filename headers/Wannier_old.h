@@ -488,26 +488,47 @@ void Wannier::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)
             H[ic][jc] = energy(ic, jc, k);
             if(ic==jc) 
               {
-    H[ic][jc].imag(0.);
+                H[ic][jc].imag(0.);
               }      
         }
     }
 
-    vec epsilon;
-    cx_mat U;
-    cx_mat Hw; 
-    epsilon.zeros(nwannier);
-    U.zeros(nwannier, nwannier);
-    Hw.zeros(nwannier, nwannier);
-    //copy the Ek matrix in an armadillo matrix
-    for (int ic=_Nch; ic<_Ncv; ic++)
+    //copy hamiltonian in U to get eigenvectors
+    for(int ic = 0; ic < _Ncv; ic++)
     {
-        for (int jc=_Nch; jc < _Ncv; jc++)
+        for(int jc = 0; jc<_Ncv; jc++)
         {
-            Hw(ic-_Nch, jc-_Nch) = H[ic][jc];
+          Uk[ic][jc] = H[ic][jc];
+        }        
+    }
+    //V->compute eigenvalues and eigenvectors
+    std::vector<double> Energy(_Ncv);
+    MKL_INT info = LAPACKE_zheev( LAPACK_ROW_MAJOR, 'V', 'L', _Ncv, &(Uk[0][0]), _Ncv, &(Energy[0]) );
+    //get conjugate transpose for Uk
+    for(int ic=0; ic<_Ncv; ic++)
+    {
+         for(int jc = 0; jc<_Ncv; jc++)
+        {
+            complexd u = Uk[jc][ic];
+            Uk[jc][ic] = conj(Uk[ic][jc]);
+            Uk[ic][jc] = conj(u);
         }
     }
-    eig_sym(epsilon, U, Hw);
+    //vec epsilon;
+    //cx_mat U;
+    //cx_mat Hw; 
+    //epsilon.zeros(nwannier);
+    //U.zeros(nwannier, nwannier);
+    //Hw.zeros(nwannier, nwannier);
+    ////copy the Ek matrix in an armadillo matrix
+    //for (int ic=_Nch; ic<_Ncv; ic++)
+    //{
+    //    for (int jc=_Nch; jc < _Ncv; jc++)
+    //    {
+    //        Hw(ic-_Nch, jc-_Nch) = H[ic][jc];
+    //    }
+    //}
+    //eig_sym(epsilon, U, Hw);
 
 
 
@@ -525,21 +546,20 @@ void Wannier::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)
 //cx_mat UU;
 //UU.zeros(nwannier,nwannier);      
 
-  Uk.fill(0.);
-  for(int ic=0; ic<_Nch; ic++)
-  {
-      Uk[ic][ic] = 1.;
-  }
-
-  for (int ic=_Nch; ic<_Ncv; ic++)
-  {
-      for (int jc=_Nch; jc < _Ncv; jc++)
-      {
-          complexd el = U(jc-_Nch,ic-_Nch);
-          Uk[ic][jc]=conj(el);
-//UU(ic,jc) = Uk[ic][jc];
-      }    
-  } 
+//  Uk.fill(0.);
+//  for(int ic=0; ic<_Nch; ic++)
+//  {
+//      Uk[ic][ic] = 1.;
+//  }
+//
+//  for (int ic=_Nch; ic<_Ncv; ic++)
+//  {
+//      for (int jc=_Nch; jc < _Ncv; jc++)
+//      {
+//          complexd el = U(jc-_Nch,ic-_Nch);
+//          Uk[ic][jc]=conj(el);
+//      }    
+//  } 
 
 //if(k.crys[1] < 0.06 && k.crys[2] < 0.06)
 //cout << "UHUd" << endl;

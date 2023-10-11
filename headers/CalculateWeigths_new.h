@@ -62,7 +62,6 @@ void CalculateWeigths_new(vec2d& kpt, vector<double>& Weigths, vector<vector<vec
 		//mat A(21,Bvector.size()), S(21,Bvector.size()), q(21,1), U, V, w;
 		vec2d A(21,Bvector.size());
 		vec2d q(21,1);
-		vec2d w(Bvector.size(),1);
 		//vec s;
 		
 		//A.zeros();		S.zeros();
@@ -101,29 +100,36 @@ void CalculateWeigths_new(vec2d& kpt, vector<double>& Weigths, vector<vector<vec
 		for (int row=3; row<21; row++)
 			q[row][0] = 0.;    
 
-		//LU factorization of A
-		//--> to change with pseudoinverse!!     vec2d LU(A.n1(), A.n2());
-		//--> to change with pseudoinverse!!     for(int ic=0; ic<A.n1(); ic++)
-		//--> to change with pseudoinverse!!     {
-		//--> to change with pseudoinverse!!     	for(int jc=0; jc<A.n2(); jc++)
-		//--> to change with pseudoinverse!!     	{
-		//--> to change with pseudoinverse!!     		LU[ic][jc]=A[ic][jc];
-		//--> to change with pseudoinverse!!     	}
-		//--> to change with pseudoinverse!!     }
-		//--> to change with pseudoinverse!!     std::vector<int> IPIV(A.n1());
-		//--> to change with pseudoinverse!!     for(int ic=0; ic<IPIV.n1(); ic++)
-		//--> to change with pseudoinverse!!     {
-		//--> to change with pseudoinverse!!     	IPIV[ic]=ic;
-		//--> to change with pseudoinverse!!     }
-		//--> to change with pseudoinverse!!     int info = LAPACKE_dgetrf (LAPACK_ROW_MAJOR, A.n1(), A.n2(), &A[0][0], A.n2(), &IPIV[0]);
-		//--> to change with pseudoinverse!!     //Linear system A*w = q
-		//--> to change with pseudoinverse!!     info = LAPACKE_dgetrs(LAPACK_ROW_MAJOR, 'N', A.n1(), 1, &A[0][0], &q[0][0], A.n2(), )
+		vector<double> s(A.n2());
+		multivec2D<double> u(A.n1(), A.n1());
+		multivec2D<double> vt(A.n2(), A.n2());
+		vector<double> superb(A.n2()-1);
+		
+		auto info = LAPACKE_dgesvd( LAPACK_ROW_MAJOR, 'A', 'A', A.n1(), A.n2(), &A[0][0], A.n1(),
+                        &s[0], &u[0][0], A.n1(), &vt[0][0], A.n2(), &superb[0]);
+		//get pseudoinverse from svd
+		multivec2D<double> invA(A.n2(), A.n1());
+		invA.fill(0.);
+		for(int ic=0; ic<A.n2(); ic++){
+			for(int jc=0; jc<A.n2(); jc++){
+				for(int kc=0; kc<A.n1(); kc++){
+					invA[ic][jc] += vt[kc][ic]*s[kc]*u[jc][kc];
+				}
+			}
+		}
+
 	    //    w=pinv(A,1.e-16)*q;
+		multivec2D<double> w(invA.n1(), 1);
+		for(int ic=0; ic<invA.n1(); ic++){
+			for(int jc=0; jc<invA.n2(); jc++){
+				w[ic][0] += invA[ic][jc]*q[jc][0];
+			}
+		}
 		Weigths.resize(w.n1());
 		for(int i=0; i<w.n1(); i++)
 			Weigths[i] = w[i][0];
 		//mat q1 = A*w;
-		vec2d q1(21,1);
+		vec2d q1(invA.n2(),1);
 		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
            21, Bvector.size(), 1, 1., &A[0][0], 1, &w[0][0], Bvector.size(), 0., &q1[0][0], Bvector.size());
 		vec2d deltaq(21,1);

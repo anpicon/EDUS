@@ -13,7 +13,7 @@
 #include <memory>
 
 
-
+#include <omp.h>
 using namespace std;
 
 #include "BoostArrays.h"

@@ -4,16 +4,11 @@ class Wannier
 {
   public:
     Wannier(){};
-    void Wannier_start(string& name);
-
-    void init(string name, int Nch, int Ncv, double FermiEnergy);
+    void init(string name, int Nch, int Ncv);
     //complexd operator()(int& ic, int&jc, double& kx, double& ky, double& kz);
     complexd energy(int& ic, int& jc, Coord_B& k);
     void energy(vec2x&, Coord_B&);
     void energy_U(vec2x&, vec2x&, Coord_B&);
-    void energy_Bloch(vec1d& energy, Coord_B& k);
-
-    complexd unitary(int& i, int& j, Coord_B& kk);
     complexd Xgradientenergy(int&ic, int& jc, Coord_B& k);
     complexd Ygradientenergy(int&ic, int& jc, Coord_B& k);
     complexd Zgradientenergy(int&ic, int& jc, Coord_B& k);
@@ -24,7 +19,6 @@ class Wannier
     void dipole(vec3x&, Coord_B&);
     //complexd unitary(int& ic, int& jc, Coord_B& k);
     void GradientEnergy(vec3x& GE, Coord_B& k);
-    void print_dipole();
     string _name;
     int nrpts;
 
@@ -34,14 +28,9 @@ class Wannier
     int nwannier;
     vec3x Hvv;
     vec1d Hcc;
-    //vec2d Rvv;
-    vec2i RvvH;
-    vec2i Rvvx;
-    vec2i Rvvy;
-    vec2i Rvvz;
-    vec2i RvvU;
-    vec2d Rvc;
+    vec2d Rvv;
     vec2d Rcc;
+    vec2d Rcv;
     vec1d ndegen;
     vec3x xvv;
     vec3x yvv;
@@ -49,70 +38,154 @@ class Wannier
     vec3d xcc;
     vec3d ycc;
     vec3d zcc;
-    vec3d xvc;
-    vec3d yvc;
-    vec3d zvc;
-    vec3x Uvv;
-
-    multivec1D<bool> Singularity;
-
+    vec3d xcv;
+    vec3d ycv;
+    vec3d zcv;
 };
 
-#include<Wannier_start.h>
 
-void Wannier::init(string name, int Nch, int Ncv, double FermiEnergy)
+void Wannier::init(string name, int Nch, int Ncv)
 {
-    printf("starting wannier....\n");
-      Wannier_start(name);//
-    printf(  "*********************************************************************************************\n");  
-    printf(  "*  Number of R points H:                       %3i       %3i                                *\n", int(RvvH.n1()), int(Hvv.n3()));
-    printf(  "*  Number of R points XiX:                     %3i       %3i   %3i %3i                      *\n", int(Rvvx.n1()), int(xvv.n1()), int(xvv.n2()),int(xvv.n3()));
-    printf(  "*  Number of R points XiY:                     %3i       %3i                                *\n", int(Rvvy.n1()), int(yvv.n3()));
-    printf(  "*  Number of R points XiZ:                     %3i       %3i                                *\n", int(Rvvz.n1()), int(zvv.n3()));
-    printf(  "*  Number of R points U:                       %3i       %3i                                *\n", int(RvvU.n1()), int(Uvv.n3()));
-    printf(  "*********************************************************************************************\n");  
+    _name = name;
+    _Ncv = Ncv;
+    _Nch = Nch;
+   ifstream fp_input;
+   string sname=_name + "_tb.dat";
+   fp_input.open(sname.c_str());
+   nwannier=0;
 
-      _Nch = Nch; 
-      _Ncv = Ncv;
+
+            /****************************************************************************
+            ******************       Reading the _tb file       *************************
+            *************          from the w90 calculation        **********************
+            *****************************************************************************
+            ****************************************************************************/
+/* reading wannier output */
+   if (fp_input)
+   {
+       string trash;
+       for(int ii=0; ii<4; ii++)   getline(fp_input, trash);
+       fp_input >> nwannier;   //number of wannier functions
+       fp_input >> nrpts;      //number of points in the wigner seitz grid
+       Rvv.resize(nrpts, 3);
+       Hvv.resize(nwannier, nwannier, nrpts); //matrix HR[nrpts][nwannier][nwannier]
+       ndegen.resize( nrpts);
+       for (int i=0; i<nrpts; i++)
+       {
+         fp_input >> ndegen[i]; //degeneracy of the i-th R point
+       }
+       for(int iR=0; iR<nrpts; iR++)
+       {
+             getline(fp_input, trash);
+             double Hr=0.;
+             double Hi=0.;
+             fp_input >> Rvv[iR][0] >> Rvv[iR][1] >> Rvv[iR][2];
+    
+             for(int in=0; in<nwannier; in++)
+             {    for(int im=0; im<nwannier; im++)
+                  {
+                       fp_input >>trash;
+                       fp_input >> trash;
+                       fp_input >> Hr;
+                       Hvv[im][in][iR].real(Hr/ndegen[iR]*energy_eV_au);
+                       fp_input >> Hi;
+                       Hvv[im][in][iR].imag(Hi/ndegen[iR]*energy_eV_au);
+                      // cout <<iR<<"   " << im << "    " << in << endl;
+ //cout << iR << " " << Rvv[iR][0] << " " << Rvv[iR][1] << " " << Rvv[iR][2] << " " << Hr << " " << Hi <<  endl;    
+
+                  }//end im
+              }//end in
+         }//end iR
+
+        string trashD;
+        //getline(fp_input, trashD);
+        //cout << trashD;
+        //fp_input >> trashD;
+        double Dr, Di;
+        xvv.resize(nwannier, nwannier, nrpts);          //components of the r matrix (along x, y, z)
+        yvv.resize(nwannier, nwannier, nrpts);           // The matrix elements are
+        zvv.resize(nwannier, nwannier, nrpts);           // <m0|r|Rn>
+        for(int iR=0; iR<nrpts; iR++)
+        {
+           getline(fp_input, trash);
+           getline(fp_input, trash); 
+           getline(fp_input, trash); 
+           for(int in=0; in<nwannier; in++)
+           {
+              for(int im=0; im<nwannier; im++)
+              {
+ //cout << iR << " " << Rvv[iR][0] << " " << Rvv[iR][1] << " " << Rvv[iR][2] << " ";
+                    fp_input >> trash; 
+                    fp_input >> trash; 
+                    //------read the matrix elements of x, y, z.
+                    fp_input >> Dr;
+                    fp_input >> Di;
+                    xvv[im][in][iR].real(Dr/ndegen[iR]*space_A_au);
+                    xvv[im][in][iR].imag(Di/ndegen[iR]*space_A_au);
+                    //cout  << Dr << " " << Di << " ";
+                    fp_input >> Dr;
+                    fp_input >> Di;
+                    yvv[im][in][iR].real(Dr/ndegen[iR]*space_A_au);
+                    yvv[im][in][iR].imag(Di/ndegen[iR]*space_A_au);
+                    //cout  << Dr << " " << Di << " ";
+                    fp_input >> Dr;
+                    fp_input >> Di;
+                    zvv[im][in][iR].real(Dr/ndegen[iR]*space_A_au);
+                    zvv[im][in][iR].imag(Di/ndegen[iR]*space_A_au);
+                    //cout  << Dr << " " << Di << " ";
+                    //cout << endl;     
+ 
+              }
+           }//end im
+        }//end in
+
+}
+ else
+ {
+     printf(  "No path %20s file found. \n",sname.c_str());
+     //cerr << "No path graphite_tb.dat file found.\n";
+     exit(1); 
+ }
+ fp_input.close();
 
 /* reading core calculation output */
-      ifstream fp_input;
+
  if(_Nch!=0)
  {
-
     int neighbors = 27;
     Hcc.resize(_Nch);
-    Rcc.resize(neighbors,neighbors);
+    Rcc.resize(neighbors,3);
     xcc.resize(_Nch, _Nch, neighbors);
     ycc.resize(_Nch, _Nch, neighbors);
     zcc.resize(_Nch, _Nch, neighbors);
+    int neighborscv=5*5*5;
+    Rcv.resize(neighborscv,3);
+    xcv.resize(_Nch,_Ncv-_Nch, neighborscv);
+    ycv.resize(_Nch,_Ncv-_Nch, neighborscv);
+    zcv.resize(_Nch,_Ncv-_Nch, neighborscv);
 
-
-    printf("reading dipole_cc.dat....\n");
     fp_input.open("dipole_cc.dat");
     if(fp_input)
     {
-        string trash;
-            int ic, jc;
-            for(int iR=0; iR<neighbors; iR++)
-            {
-                fp_input >>  Rcc[iR][0] >> Rcc[iR][1] >> Rcc[iR][2] ;
-                //cout <<  " " << Rcc[iR][0] << " " <<  Rcc[iR][1] << " " << Rcc[iR][2] << endl;
-                for(int i=0; i<_Nch*_Nch; i++)
-                {
-                  fp_input >> ic >> jc >> xcc[ic][jc][iR] >> ycc[ic][jc][iR] >> zcc[ic][jc][iR]>> trash;
-                  if(abs(xcc[ic][jc][iR]>1.e-08))  xcc[ic][jc][iR]*=space_A_au;
-                  else                        xcc[ic][jc][iR] = 0;
-                  if(abs(ycc[ic][jc][iR]>1.e-08))  ycc[ic][jc][iR]*=space_A_au;
-                  else                        ycc[ic][jc][iR] = 0;
-                  if(abs(zcc[ic][jc][iR]>1.e-08))  zcc[ic][jc][iR]*=space_A_au;
-                  else                        zcc[ic][jc][iR] = 0;
-                }
-            }
-            printf("Last info in dipole_cc.dat: \n");
-            printf("%3i, %3i, %6.3f  %6.3f  %6.3f\n", ic,jc,xcc[_Nch-1][_Nch-1][Rcc.n1()-1]*space_au_A,
-                    ycc[_Nch-1][_Nch-1][Rcc.n1()-1]*space_au_A,
-                    zcc[_Nch-1][_Nch-1][Rcc.n1()-1]*space_au_A);
+    	string trash;
+        for(int iR=0; iR<neighbors; iR++)
+        {
+            fp_input >> Rcc[iR][0] >> Rcc[iR][1] >> Rcc[iR][2];
+            for(int icjc=0; icjc<nwannier*nwannier; icjc++)
+            {    
+            	int ic,jc;
+                fp_input >> ic >> jc;
+                fp_input >> xcc[ic][jc][iR] >> ycc[ic][jc][iR] >> zcc[ic][jc][iR];
+                //cout <<setw(20) << "iR = " << iR;
+                //cout <<setw(20) << Rcc[iR][0];
+                //cout <<setw(20) << Rcc[iR][1]; 
+                //cout <<setw(20)<< Rcc[iR][2];
+                //cout <<setw(20) << setprecision(4) << xcc[ic][jc][iR];
+                //cout <<setw(20) << setprecision(4) << ycc[ic][jc][iR];
+                //cout <<setw(20) << setprecision(4) << zcc[ic][jc][iR]<<endl;
+                getline(fp_input, trash);
+            }//end icjc
+        }//end IR
     }
     else
     {
@@ -121,44 +194,55 @@ void Wannier::init(string name, int Nch, int Ncv, double FermiEnergy)
     exit(1); 
     } 
     fp_input.close();
-
-    neighbors = 5*5*5;
-
-    Rvc.resize(neighbors, 3);
-    xvc.resize(_Ncv, _Ncv, neighbors);
-    yvc.resize(_Ncv, _Ncv, neighbors);
-    zvc.resize(_Ncv, _Ncv, neighbors);
-
     fp_input.open("dipole_cv.dat");
-    
-    int mex = 2*(_Ncv-_Nch)*_Nch;
-    //cout <<" mex = " << mex << endl;
     if(fp_input)
     {
-        string trash;
+    	string trash;
+        for(int iR=0; iR<neighborscv; iR++)
+        {
+            fp_input >> Rcv[iR][0] >> Rcv[iR][1] >> Rcv[iR][2];
+            for(int icjc=0; icjc<_Nch*(_Ncv-_Nch); icjc++)
+            {    
+            	int ic,jc;
+                fp_input >> ic >> jc;
+                //cout << ic << jc << endl;
+                bool invert=true;
+                //if(ic>=_Nch) 
+                //	{ic -=_Nch; invert=true;}
+                //else if(jc>=_Nch) 
+                //	{jc -=_Nch; invert=false;}
+                //else 
+                //	cout <<"not required value in dipole_cv.dat\n"; 
+            
+                double x,y,z;
+                fp_input >> x>>y>>z;
+                int i,j; 
+                i=ic; j=jc;
+                //if(invert) {i=jc; j=ic;}
+                //else {i=ic; j=jc;}
+                xcv[i][j][iR] +=x;
+                ycv[i][j][iR] +=y;
+                zcv[i][j][iR] +=z;
+            }//end icjc
+            getline(fp_input, trash);
+            getline(fp_input, trash);
+            //for(int ic=0; ic<_Nch; ic++)
+            //{
+            //	for(int jc=0; jc<_Ncv-_Nch; jc++)
+            //	{
+            //		xcv[ic][jc][iR]*=.5; ycv[ic][jc][iR]*=.5; zcv[ic][jc][iR]*=.5; 
+            //    cout <<setw(20) << "iR = " << iR;
+            //    cout <<setw(20) << Rcv[iR][0];
+            //    cout <<setw(20) << Rcv[iR][1]; 
+            //    cout <<setw(20) << Rcv[iR][2];
+            //		cout <<setw(20) << setprecision(4) << xcv[ic][jc][iR];
+            //    	cout <<setw(20) << setprecision(4) << ycv[ic][jc][iR];
+            //    	cout <<setw(20) << setprecision(4) << zcv[ic][jc][iR]<<endl;
 
-            int ic, jc;
-            for(int iR=0; iR<neighbors; iR++)
-            {
-                fp_input >> Rvc[iR][0] >> Rvc[iR][1] >> Rvc[iR][2];
-                //cout << Rvc[iR][0] << " " << Rvc[iR][1] << " " <<  Rvc[iR][2] << endl;
-                for(int i=0; i<mex; i++)
-                {
+            //	}
+            //}
 
-                  fp_input >> ic >> jc >> xvc[ic][jc][iR] >> yvc[ic][jc][iR] >> zvc[ic][jc][iR]; //>> trash;   
-                  if(abs(xvc[ic][jc][iR]>1.e-08))  xvc[ic][jc][iR]*=space_A_au;
-                  else                        xvc[ic][jc][iR] = 0;
-                  if(abs(yvc[ic][jc][iR]>1.e-08))  yvc[ic][jc][iR]*=space_A_au;
-                  else                        yvc[ic][jc][iR] = 0;
-                  if(abs(zvc[ic][jc][iR]>1.e-08))  zvc[ic][jc][iR]*=space_A_au;
-                  else                        zvc[ic][jc][iR] = 0;
-                }
-            }
-
-            printf("Last info in dipole_cv.dat: \n");
-            printf("%3i, %3i, %6.3f  %6.3f  %6.3f\n", ic,jc,xvc[ic][jc][Rvc.n1()-1]*space_au_A,
-                    yvc[ic][jc][Rvc.n1()-1]*space_au_A,
-                    zvc[ic][jc][Rvc.n1()-1]*space_au_A);
+        }//end IR
     }
     else
     {
@@ -174,13 +258,12 @@ void Wannier::init(string name, int Nch, int Ncv, double FermiEnergy)
         Hcc.resize(_Nch);
         for(int i=0; i<_Nch; i++)
           fp_input >> Hcc[i];
-        printf("Energy of core-hole: %4.3f\n", Hcc[Hcc.n1()-1]);
     }
     else
     {
-      printf(  "No path Hcc.dat file found. \n");
-      //cerr << "No path graphite_tb.dat file found.\n";
-      exit(1); 
+    printf(  "No path Hcc.dat file found. \n");
+    //cerr << "No path graphite_tb.dat file found.\n";
+    exit(1); 
     } 
     fp_input.close();
 
@@ -199,18 +282,23 @@ complexd Wannier::energy(int& ic, int& jc, Coord_B& k)
     int i = ic - _Nch;
     int j = jc - _Nch; 
     complexd value=0.;
-    for(int iR=0; iR<RvvH.n1(); iR++)
+    for(int iR=0; iR<nrpts; iR++)
     {
         double kR=0.;
-        for(int l=0; l<3; l++) kR += k.crys[l]*RvvH[iR][l];
+        for(int l=0; l<3; l++) kR += k.crys[l]*Rvv[iR][l];
         kR *= 2*pi;
         value+= exp(c1*kR)* Hvv[i][j][iR];
     }//loop R
     return value;
   }
-  else if (ic<_Nch && jc < _Nch && ic==jc)
+  else if (ic<_Nch && jc < _Nch)
   {
-    return Hcc[ic];
+    complexd value=0.;
+    if(ic==jc)
+    {
+        return Hcc[ic];
+    }
+    else return 0;
   }
   else return 0.;
 }
@@ -229,12 +317,12 @@ void Wannier::GradientEnergy(vec3x& GE, Coord_B& k)
             else{
                 int i = ic - _Nch;
                 int j = jc - _Nch;
-                for(int iR=0; iR<RvvH.n1(); iR++)
+                for(int iR=0; iR<nrpts; iR++)
                 {
                     double kR=0.;
-                    for(int l=0; l<3; l++) kR += k.crys[l]*RvvH[iR][l];
+                    for(int l=0; l<3; l++) kR += k.crys[l]*Rvv[iR][l];
                     kR *= 2.*pi;
-                    for(int l=0; l<3; l++) GE[ic][jc][l]+= c1*2.*pi*RvvH[iR][l]*exp(c1*kR)*Hvv[i][j][iR];
+                    for(int l=0; l<3; l++) GE[ic][jc][l]+= c1*2.*pi*Rvv[iR][l]*exp(c1*kR)*Hvv[i][j][iR];
                 }//loop R
             }
         }
@@ -252,10 +340,10 @@ complexd Wannier::dipolex(int& ic, int& jc, Coord_B& k)
     int i = ic - _Nch;
     int j = jc - _Nch; 
     complexd value=0.;
-    for(int iR=0; iR<Rvvx.n1(); iR++)
+    for(int iR=0; iR<nrpts; iR++)
     {
         double kR=0.;
-        for(int l=0; l<3; l++) kR += k.crys[l]*Rvvx[iR][l];
+        for(int l=0; l<3; l++) kR += k.crys[l]*Rvv[iR][l];
         kR *= 2*pi;
         value += exp(c1*kR)* xvv[i][j][iR];
     }//loop R
@@ -275,13 +363,14 @@ complexd Wannier::dipolex(int& ic, int& jc, Coord_B& k)
   }
   else if (ic >= _Nch && jc < _Nch)//we can put it first to save time in the if statement when we need the conj
   {
+    int i=ic-_Nch;
     complexd value=0.;
-    for(int iR=0; iR<xvc.n3(); iR++)
+    for(int iR=0; iR<xcv.n3(); iR++)
     {
         double kR=0.;
-        for(int l=0; l<3; l++) kR += k.crys[l]*Rvc[iR][l];
+        for(int l=0; l<3; l++) kR += k.crys[l]*Rcv[iR][l];
         kR *= 2*pi;
-        value+= exp(c1*kR)* xvc[ic][jc][iR];
+        value+= exp(c1*kR)* xcv[i][jc][iR];
     }//loop R
     return value;
   }//loop R
@@ -298,10 +387,10 @@ complexd Wannier::dipoley(int& ic, int& jc, Coord_B& k)
     int j = jc - _Nch; 
     complexd value=0.;
 
-    for(int iR=0; iR<Rvvy.n1(); iR++)
+    for(int iR=0; iR<nrpts; iR++)
     {
         double kR=0.;
-        for(int l=0; l<3; l++) kR += k.crys[l]*Rvvy[iR][l];
+        for(int l=0; l<3; l++) kR += k.crys[l]*Rvv[iR][l];
         kR *= 2*pi;
         value += exp(c1*kR)* yvv[i][j][iR];
     }//loop R
@@ -323,12 +412,12 @@ complexd Wannier::dipoley(int& ic, int& jc, Coord_B& k)
   {
     int i=ic-_Nch;
     complexd value=0.;
-    for(int iR=0; iR<yvc.n3(); iR++)
+    for(int iR=0; iR<ycv.n3(); iR++)
     {
         double kR=0.;
-        for(int l=0; l<3; l++) kR += k.crys[l]*Rvc[iR][l];
+        for(int l=0; l<3; l++) kR += k.crys[l]*Rcv[iR][l];
         kR *= 2*pi;
-        value+= exp(c1*kR)* yvc[ic][jc][iR];
+        value+= exp(c1*kR)* ycv[i][jc][iR];
     }//loop R
     return value;
   }//loop R
@@ -344,10 +433,10 @@ complexd Wannier::dipolez(int& ic, int& jc, Coord_B& k)
     int i = ic - _Nch;
     int j = jc - _Nch; 
     complexd value=0.;
-    for(int iR=0; iR<Rvvz.n1(); iR++)
+    for(int iR=0; iR<nrpts; iR++)
     {
         double kR=0.;
-        for(int l=0; l<3; l++) kR += k.crys[l]*Rvvz[iR][l];
+        for(int l=0; l<3; l++) kR += k.crys[l]*Rvv[iR][l];
         kR *= 2*pi;
         value += exp(c1*kR)* zvv[i][j][iR];
     }//loop R
@@ -369,12 +458,12 @@ complexd Wannier::dipolez(int& ic, int& jc, Coord_B& k)
   {
     int i=ic-_Nch;
     complexd value=0.;
-    for(int iR=0; iR<zvc.n3(); iR++)
+    for(int iR=0; iR<zcv.n3(); iR++)
     {
         double kR=0.;
-        for(int l=0; l<3; l++) kR += k.crys[l]*Rvc[iR][l];
+        for(int l=0; l<3; l++) kR += k.crys[l]*Rcv[iR][l];
         kR *= 2*pi;
-        value+= exp(c1*kR)* zvc[ic][jc][iR];
+        value+= exp(c1*kR)* zcv[i][jc][iR];
     }//loop R
     return value;
   }//loop R
@@ -387,88 +476,54 @@ complexd Wannier::dipolez(int& ic, int& jc, Coord_B& k)
 
 void Wannier::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)    
 {
+
+//k.crys[0] = 0.;
+//k.crys[1] = 0.33333333;
+//k.crys[2] =-0.33333333;
+    H.fill(0.);
     for(int ic = 0; ic < _Ncv; ic++)
     {
         for(int jc = 0; jc<_Ncv; jc++)
         {
             H[ic][jc] = energy(ic, jc, k);
             if(ic==jc) 
-            {
-		          H[ic][jc].imag(0.);
-            }      
+              {
+    H[ic][jc].imag(0.);
+              }      
         }
     }
-    vector<int> ix(3);
-    for(int icoor=0; icoor<3; icoor++)
-    {
-      ix[icoor] = (int)floor(fmod((k.crys[icoor])*Nk[icoor],Nk[icoor]));
-      while(ix[icoor] < 0) ix[icoor]+=1;
-    }  
-    Uk.fill(0.);
-    //if(!Singularity[ix[2]+Nk[2]*ix[1]+Nk[2]*Nk[1]*ix[0]]) 
-    ////if(Singularity[ix[2]+Nk[2]*ix[1]+Nk[2]*Nk[1]*ix[0]] || !Singularity[ix[2]+Nk[2]*ix[1]+Nk[2]*Nk[1]*ix[0]]) 
-    //{
-    //cout << " IK! " << ix[2]+Nk[2]*ix[1]+Nk[2]*Nk[1]*ix[0] << endl;
-    //  for(int ic=0; ic<_Nch; ic++)
-    //    Uk[ic][ic] = 1.;
-    //  
-    //  for(int ic=_Nch; ic<_Ncv; ic++)
-    //  {
-    //    for(int jc=_Nch; jc<_Ncv; jc++)
-    //    {
-    //      double kR = 0;
-    //      for(int iR=0; iR<RvvU.n1();iR++)
-    //      {
-    //        for(int icoor=0; icoor<3; icoor++)
-    //        //  kR += k.crys[icoor]*RvvU[iR][icoor];
-    //        //Uk[ic][jc] += exp(2.*pi*c1*kR)*Uvv[ic-_Nch][jc-_Nch][iR];
-    //        kR += k.crys[icoor]*RvvU[0][icoor];
-    //        Uk[ic][jc] += exp(2.*pi*c1*kR)*Uvv[ic-_Nch][jc-_Nch][0];
-    //      }
-//
-    //    }
-    //  }
-    //  return;
-    //}
 
     vec epsilon;
     cx_mat U;
     cx_mat Hw; 
-    complex<double> H_aver;
-    double Hermit_check;
-    epsilon.zeros(_Ncv-_Nch);
-    U.zeros(_Ncv-_Nch, _Ncv-_Nch);
-    Hw.zeros(_Ncv-_Nch, _Ncv-_Nch);
-
-    // force to be hermitian
-    // for (int ic=0; ic<_Ncv; ic++){// summation over bands
-    //     for (int jc=ic+1; jc<_Ncv; jc++){ // summation over bands
-    //         Hermit_check = abs(H[ic][jc] - conj(H[jc][ic]));
-    //         if (Hermit_check > 1e-17){
-    //             cout << "Non-Hermitian Hamiltonian " << " ic=" << ic<< " jc=" << jc << " |H-H*|=" << Hermit_check << endl;
-    //         }
-    //         H_aver = (H[ic][jc] + conj(H[jc][ic]))/ 2.0;
-    //         H[ic][jc] = H_aver;
-    //         H[jc][ic] = conj(H_aver);
-
-    //         Hermit_check = abs(H[ic][jc] - conj(H[jc][ic]));
-    //         if (Hermit_check > 1e-30){
-    //             cout << "After_symmetr " << " ic=" << ic<< " jc=" << jc << " |H-H*|=" << Hermit_check << endl;
-    //         }
-
-    //     }
-    // }
+    epsilon.zeros(nwannier);
+    U.zeros(nwannier, nwannier);
+    Hw.zeros(nwannier, nwannier);
     //copy the Ek matrix in an armadillo matrix
-    for (int ic=0; ic<_Ncv-_Nch; ic++)
+    for (int ic=_Nch; ic<_Ncv; ic++)
     {
-        for (int jc=0; jc < _Ncv-_Nch; jc++)
+        for (int jc=_Nch; jc < _Ncv; jc++)
         {
-            Hw(ic, jc) = H[ic+_Nch][jc+_Nch];
+            Hw(ic-_Nch, jc-_Nch) = H[ic][jc];
         }
     }
-
-
     eig_sym(epsilon, U, Hw);
+
+
+
+
+//if(k.crys[1] < 0.06 && k.crys[2] < 0.06)
+//{
+//cout << "k " << k.crys[0] << " " << k.crys[1] << " " << k.crys[2] << endl;
+//cout << "H" << endl;
+//cout << Hw << endl;
+//cout << "U" << endl;
+//cout << U.t() << endl;
+//cout << "eigenvalues" << endl;
+//cout << epsilon << endl;
+//}
+//cx_mat UU;
+//UU.zeros(nwannier,nwannier);      
 
   Uk.fill(0.);
   for(int ic=0; ic<_Nch; ic++)
@@ -482,10 +537,17 @@ void Wannier::energy_U(vec2x& H, vec2x& Uk, Coord_B& k)
       {
           complexd el = U(jc-_Nch,ic-_Nch);
           Uk[ic][jc]=conj(el);
+//UU(ic,jc) = Uk[ic][jc];
       }    
   } 
 
-
+//if(k.crys[1] < 0.06 && k.crys[2] < 0.06)
+//cout << "UHUd" << endl;
+//cout << UU*Hw*UU.t() << endl;
+//cout << "UdHU " << endl;
+//cout << UU.t()*Hw*UU << endl;
+//cout << endl << endl;
+//}
 }
 
 void  Wannier::energy(vec2x& H, Coord_B& k)
@@ -515,7 +577,7 @@ void  Wannier::dipole(vec3x& Dx, Coord_B& k)
             if(ic==jc) 
               for(int i=0; i<3; i++) Dx[ic][jc][i].imag(0.);
         }
-    	
+      
     }
 /*
     for(int ic = 0; ic < _Ncv; ic++)
@@ -526,61 +588,5 @@ void  Wannier::dipole(vec3x& Dx, Coord_B& k)
     }
     cout << endl ; 
 }cout << endl;*/
-
 }
 
-
-void Wannier::print_dipole()
-{
-  for(int iR=0; iR<nrpts; iR++)
-  {
-    for(int ic=0; ic < _Ncv; ic++)
-    {
-      for(int jc=ic; jc< _Ncv; jc++)
-      {
-        cout << ic << " " << jc << " " << xvv[ic][jc][iR] << " " << xvv[jc][ic][nrpts-iR-1] << " " << (xvv[ic][jc][iR] - conj(xvv[jc][ic][nrpts-iR-1])) << " " << (xvv[ic][jc][iR] - conj(xvv[jc][ic][nrpts-iR-1]))/xvv[ic][jc][iR] << endl; 
-        cout << ic << " " << jc << " " << yvv[ic][jc][iR] << " " << yvv[jc][ic][nrpts-iR-1] << " " << (yvv[ic][jc][iR] - conj(yvv[jc][ic][nrpts-iR-1])) << " " << (yvv[ic][jc][iR] - conj(yvv[jc][ic][nrpts-iR-1]))/yvv[ic][jc][iR] << endl; 
-        cout << ic << " " << jc << " " << zvv[ic][jc][iR] << " " << zvv[jc][ic][nrpts-iR-1] << " " << (zvv[ic][jc][iR] - conj(zvv[jc][ic][nrpts-iR-1])) << " " << (zvv[ic][jc][iR] - conj(zvv[jc][ic][nrpts-iR-1]))/zvv[ic][jc][iR] << endl; 
-      }
-    }
-  }
-}
-
-
-void Wannier::energy_Bloch(vec1d& energy, Coord_B& k)
-{
-    vec2x H(nwannier, nwannier);
-
-
-    for(int ic = _Nch; ic < _Ncv; ic++)
-    {
-        for(int jc = _Nch; jc<_Ncv; jc++)
-        {
-            H[ic-_Nch][jc-_Nch] = this->energy(ic, jc, k);
-            if(ic==jc) 
-              {
-                H[ic][jc].imag(0.);
-              }      
-        }
-    }
-
-    vec epsilon;
-    cx_mat U;
-    cx_mat Hw; 
-    epsilon.zeros(nwannier);
-    U.zeros(nwannier, nwannier);
-    Hw.zeros(nwannier, nwannier);
-    //copy the Ek matrix in an armadillo matrix
-    for (int ic=0; ic<nwannier; ic++)
-    {
-        for (int jc=0; jc < nwannier; jc++)
-        {
-            Hw(ic, jc) = H[ic][jc];
-        }
-    }
-    eig_sym(epsilon, U, Hw);
-
-
-    for(int ic=0; ic<nwannier; ic++)
-      energy[ic] = epsilon(ic);
-}

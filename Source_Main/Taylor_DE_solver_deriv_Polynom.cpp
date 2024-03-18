@@ -1,12 +1,40 @@
 // Taylor time evolution
 // see Methods of DE propagations in Coulomb notes 
+
+for (int iE_2 = 0; iE_2 < 3; iE_2++) EF_pr[0][iE_2] = 0.;
+
+for(int i_pump = 0; i_pump < Laser_pumps.size(); i_pump++){ // sum over all pump pulses
+    vector<vec1d> EF_pr_copy(2); 
+    EF_pr_copy[0] = Laser_pumps[i_pump].E(time_loop);
+    
+    for (int iE_2 = 0; iE_2 < 3; iE_2++) EF_pr[0][iE_2] += EF_pr_copy[0][iE_2];
+}
+EF_pr[1] = .5*pulse2.E(time_loop);
+
+// electric field modulus:
+Emax = 0; // all components of field. We need it to know, if we need this field
+for (int iE_1 = 0; iE_1 < 2; iE_1++){
+    for (int iE_2 = 0; iE_2 < 3; iE_2++){
+        Emax += EF_pr[iE_1][iE_2]*EF_pr[iE_1][iE_2];
+    }
+}
+Emax = sqrt(Emax); 
+
+E_non0 = false;
+if (Emax > E_eps){
+    E_non0 = true;
+}
+
 #pragma omp barrier
 #pragma omp master
 { // shared variables, only master change it
+
     Coulomb_set.Taylor_Delta_Pk_max.fill(0.);
     Coulomb_set.Taylor_alpha_max.fill(0.);
-    Mpi_communication(P0,  message);
-    MPI_Barrier(MPI_COMM_WORLD);
+    if (E_non0){
+        Mpi_communication(P0,  message);
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 }
 
 
@@ -33,8 +61,7 @@ we have to addres the element with index derivatIndex[0]
 Taylor_index_shift(derivatIndex, TaylorOrder);
 #pragma omp barrier
 
-EF_pr[0] = pulse1.E(time_loop);
-EF_pr[1] = .5*pulse2.E(time_loop);
+
 
 
 
@@ -42,7 +69,7 @@ get_derivative_Df(kpt, P0, OMP_private.Pv, T, Nb,
     EF_pr, pulse2.wl, 
     Coulomb_set, trig_k_omp, OMP_private,
     GradientIndex, Weigths, Bvector, 
-    root_rank, rank_, message);
+    root_rank, rank_, E_non0);
 
 // store population before we did time step in OMP_private.P_W_prev
 if (Diff_Eq.dynamical_dt_evolution){

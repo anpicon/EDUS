@@ -14,8 +14,7 @@ struct Message
 
 int rank_, num_procs;
 #include "Source_Main/include_headers.cpp"
-#include "Observables_MPI.h"
-#include "Organize_kspaceMPI.h"
+
 
 
 
@@ -60,15 +59,7 @@ int main (int argc, char* argv[])
     #include "Source_Main/save_HUD.cpp"
     //#include "Source_Main/print_HUD.cpp"
     #include "Source_Main/runge_kutta_init.cpp"
-    int cnt=0;
-    if (t_fin > 0){
-        itfi = t_fin / dt; 
-    } else {
-        t_fin = itfi*dt;
-    }
-    double dt0 = dt;
-    iti = 0;//= 5;
-    // itfi /= 2;
+
     double time_loop;
 
     //Here we create list of indices of T matrix with non zero element
@@ -153,7 +144,7 @@ MPI_Barrier(MPI_COMM_WORLD);
     OMP_private.P_Wannier_0.resize(OMP_private.lenght_k,  Ncv,Ncv);
     OMP_private.P_Bloch_0.resize(OMP_private.lenght_k,  Ncv,Ncv);
     OMP_private.P0.resize(OMP_private.lenght_k,  Ncv,Ncv);
-
+    OMP_private.Vectorization = Vectorization; 
 
     OMP_private.Pv.resize(OMP_private.lenght_k,  Ncv,Ncv);
 
@@ -183,11 +174,7 @@ MPI_Barrier(MPI_COMM_WORLD);
     OMP_private.Mk.resize(Ncv, Ncv);
     OMP_private.Ak.resize(Ncv);
     OMP_private.Hk_renorm.resize(OMP_private.lenght_k, Ncv,Ncv);
-    // OMP_private.Dk.fill(0.0);
 
-    OMP_private.Dk0.resize(nk, Ncv, Ncv);
-    OMP_private.Dk1.resize(nk, Ncv, Ncv);
-    OMP_private.Dk2.resize(nk, Ncv, Ncv);
 
     // saving indices of non zero dissipation matrix to OMP_private
     OMP_private.n_diss_terms = n_diss_terms;
@@ -230,9 +217,6 @@ MPI_Barrier(MPI_COMM_WORLD);
 
                 OMP_private.P_W_prev[ik - OMP_private.begin_count][ic][jc] = OMP_private.P0[ik - OMP_private.begin_count][ic][jc];
 
-                OMP_private.Dk0[ik][ic][jc] = Dipole[ik][ic][jc][0];
-                OMP_private.Dk1[ik][ic][jc] = Dipole[ik][ic][jc][1];
-                OMP_private.Dk2[ik][ic][jc] = Dipole[ik][ic][jc][2];
 
                 Hk_arm(ic, jc) = OMP_private.Hk[ik - OMP_private.begin_count][ic][jc];
                 
@@ -285,7 +269,9 @@ MPI_Barrier(MPI_COMM_WORLD);
     vector<vec1d> EF_pr(2); // private for each thread, 
     //so they don't have to acces one block on memoryP_static
     for(int i=0; i<2; i++) {EF_pr[i].resize(3); EF_pr[i].fill(0);}
-    
+    double Emax = 0; // all components of field. We need it to know, if we need this field
+    double E_eps = 1e-20; // we suppose it's zero electric field
+    bool E_non0 = true;
     #pragma omp barrier // sinchronise threads
     if (Coulomb_set.Coulomb_calc)
     {// calculate set of coefficients 
@@ -329,7 +315,7 @@ MPI_Barrier(MPI_COMM_WORLD);
             }    // end of creation equilibrium coulomb part
             for (int ic=0; ic<Ncv; ic++){// summation over bands
                 Coulomb_set.E_Hartree0[ic] = Coulomb_set.E_Hartree[ic];
-                if (rank_ == root_rank) cout << "ic= " << ic << "   Coulomb_set.E_Hartree0[ic] = "  << Coulomb_set.E_Hartree0[ic]*energy_au_eV << " eV" << endl;
+                // if (rank_ == root_rank) cout << "ic= " << ic << "   Coulomb_set.E_Hartree0[ic] = "  << Coulomb_set.E_Hartree0[ic]*energy_au_eV << " eV" << endl;
             }
             
         }
@@ -405,8 +391,7 @@ MPI_Barrier(MPI_COMM_WORLD);
 
 
 // compilation on desktop:
-// mpicxx main_MPI.cpp  -fopenmp -I/usr/include/python2.7 -lpython2.7 -larmadillo -I./headers
 // mpicxx main_MPI.cpp  -fopenmp  -larmadillo -I./headers
 // export OMP_NUM_THREADS=7
-//  mpirun -np 1 ./a.out input.txt
+//  mpirun -np 1 ./a.out input.txt 1> output.log 2> output.err
 //mpirun ../../mpicbwe.x input.txt 1> output.log 2> output.err

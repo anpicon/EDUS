@@ -24,7 +24,7 @@ fp_input >> RefCoord;
 Read_Input(fp_input, a, b,
     Nk, kpt, kptread,         //k space
     Nb,
-    pulse1,  pulse2, DELAY,// u1,  u2, gaussian1, gaussian2, sigma1, sigma2, DELAY,
+    Laser_pumps,  pulse2, DELAY,// u1,  u2, gaussian1, gaussian2, sigma1, sigma2, DELAY,
     iMode, TBtype, dt,t_fin,
     iWFDs, wfd_resolution, Coulomb_set,  iCurrent, iTAbs, iTAbsK,
     T1,  T2,  Tch,
@@ -32,14 +32,16 @@ Read_Input(fp_input, a, b,
            hopping, 
            FermiE,
            Diff_Eq,
-           it_resolution
+           it_resolution,
+           change_gap_constant,
+           Vectorization
     );
 printf("End read input...\n");
 
 
 
 
-BZ_parameters(Nk,dk,pulse1,pulse2,b,kpt,kptread,nTAk,TAkpt,tagTAk); //We fix the parameters for the Brillouin zone: coordinate transformation, k-grid definition, specify k points where the absorption is going to be calculated
+BZ_parameters(Nk,dk, Laser_pumps, pulse2,b,kpt,kptread,nTAk,TAkpt,tagTAk); //We fix the parameters for the Brillouin zone: coordinate transformation, k-grid definition, specify k points where the absorption is going to be calculated
 Ncv=Nb[0]+Nb[1]+Nb[2];
 int N_BZ = Nk[0]*Nk[1]*Nk[2];
 
@@ -48,7 +50,10 @@ if(iMode=="TB")
     TB_Model.init(TBtype, Nb[0], Ncv);
     TB_Model.set_hopping(hopping);
 }
-else if (iMode=="W") WModel.init(RefCoord, Nb[0], Ncv );
+else if (iMode=="W") {
+    int num_core_init_wannier = 0;
+    WModel.init(RefCoord, num_core_init_wannier, Ncv );
+}
 else if (iMode=="CY") CYModel.init(a,b,Nb[0], Ncv);
 else {
     printf("iMode = %s is incorrect \n", iMode.c_str());
@@ -76,7 +81,7 @@ if (rank_ == 0){
 }
 // exit(1);
 
-CalculateWeigths_new(kpt, Weigths, Bvector, Nk);
+CalculateWeigths(kpt, Weigths, Bvector, Nk);
 //CalculateWeigths(kpt, Weigths, Bvector, Nk);
 
 
@@ -91,7 +96,7 @@ CalculateWeigths_new(kpt, Weigths, Bvector, Nk);
 Print_Input(RefCoord,a, b,
         Nk, dk,
         Nb,
-        pulse1,  pulse2, DELAY, //u1,  u2, gaussian1, gaussian2, sigma1, sigma2, DELAY,
+        Laser_pumps,  pulse2, DELAY, //u1,  u2, gaussian1, gaussian2, sigma1, sigma2, DELAY,
         iMode, TBtype, dt,
         iWFDs,  iCurrent, iTAbs, iTAbsK,
         T1,  T2,  Tch,

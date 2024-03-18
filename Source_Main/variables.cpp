@@ -19,6 +19,7 @@
     bool iCurrent=false;
     bool Print_and_sort_k = true;
     bool Print_initial_H_P = true;
+    bool Vectorization = true;
     string iMode="none"; //bool iTightBinding=false; //string to define the model
 
     Coulomb_parameters Coulomb_set; // struct with Coulomb parameters
@@ -59,7 +60,8 @@
     double T1=0.;                                                                      //dissipation term for the diagonal terms of rho
     double T2=0.;                                                                      //dissipation term for the off-diagonal terms of rho
     double Tch=0.;                                                                     //dissipation term for the core states
-    Laser pulse1;                                                                   //IR pulse
+
+    vector<Laser> Laser_pumps;                                                                  //IR pulse
     vec1d EF1(3),AF1(3); EF1.fill(0.); AF1.fill(0.);                                                              //electric field and potential vector of the IR pulse    
     Laser pulse2;                                                                   //X pulse
     vec1d EF2(3); EF2.fill(0.);
@@ -81,6 +83,7 @@
     Diff_Eq.start_print_time = 0.0; // by default
     Diff_Eq.end_print_time = 100.0* time_au_fs;
     Diff_Eq.step_print = 20.0* time_au_fs;
+    Diff_Eq.Gap_correction = 0; // by default
     vec1d dt_prev;
     double max_dP = 0.0; // for dynamical dt
     double max_P =0.0; // for dynamical dt
@@ -92,8 +95,7 @@
     double P_cond_max;
     double P_cond_max_loc_mpi;
     bool print_matrices_in_kspace = false;
-    double Emax = 0.0;
-    double E_eps= 1e-12; // default 
+
     complex<double> D_temporary;
 
     //for gradient calculation
@@ -117,3 +119,5 @@
     vec1x J2(3); //vector used in the current calculation to store the current in x,y and z
     bool drop_current = false;
     vec4x GradientEnergy; //vector used to store gradient of energy in x,y and z
+
+    double change_gap_constant = 0;

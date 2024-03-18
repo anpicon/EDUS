@@ -15,7 +15,25 @@ void Initial_Population(vec3x& P0,int& nk, vec2d& kpt,  int nktotal, vec3x& Uk,d
             for(int ib=0; ib<P0.n2(); ib++)
                 for(int ii=0; ii<P0.n2(); ii++)
                     for(int ij=0; ij<P0.n2(); ij++)
-                        P0[ik][ia][ib]+=Uk[ik][ii][ia]*P_bloch[ik][ii][ij]*conj(Uk[ik][ij][ib]);   
+                        // this indexes are arranged in a weird way. pay attention to it!! rows and columns are swapped in P0!!
+                        P0[ik][ia][ib]+=Uk[ik][ii][ia]*P_bloch[ik][ii][ij]*conj(Uk[ik][ij][ib]);
+                        /* let Ak be the conjugate transpose of Uk. then here we do
+
+                        P0[ik][ia][ib]+=Uk[ik][ii][ia]*P_bloch[ik][ii][ij]*conj(Uk[ik][ij][ib])
+                                       =Uk[ik][ii][ia]*P_bloch[ik][ii][ij]*Ak[ik][ib][ij]
+                                       =Ak[ik][ib][ij]*P_bloch[ik][ii][ij]*Uk[ik][ii][ia]
+
+                        which in conventional matrix notation would be P0[ik][ib][ia].
+
+                        another way to look at it would be
+
+                        P0[ik][ia][ib]+=Uk[ik][ii][ia]*P_bloch[ik][ii][ij]*conj(Uk[ik][ij][ib])
+                                       =conj(Ak[ik][ia][ii])*P_bloch[ik][ii][ij]*conj(Uk[ik][ij][ib])
+
+                        which is conj(Ak P_bloch Uk)[ia][ib] 
+
+                        therefore, when P0 is concerned in future operations, we must write following the conventional matrix notation
+                        and swap P0s rows and columns at the end */
        
     }
 }

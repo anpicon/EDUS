@@ -48,7 +48,7 @@ while(time_loop < t_fin){
     } // end if it_resolution
 
 
-
+    #pragma omp barrier // sinchronise threads
     if(Diff_Eq.Taylor){
         #include "Taylor_DE_solver_deriv_Polynom.cpp"
 
@@ -59,7 +59,7 @@ while(time_loop < t_fin){
 
 
 
-
+    #pragma omp barrier // sinchronise threads
 
         // to estimate the step we calculate value of Pv*dt
     // such step shouldn't change any point more then a epsStepAbs
@@ -137,7 +137,25 @@ while(time_loop < t_fin){
 
         
     } //master
+    
 
+    // // I WROTE THIS vv //
+    // #pragma omp barrier // sinchronise threads
+
+    // // PRINTING POPULATION AT IT = IT_STEP_INT
+    // double it_step = pulse1.Period/(8*dt);
+    // int it_step_int = (int)it_step;
+    // int itf = (pulse1.tf-pulse1.t0)/dt;
+    // if (it%it_step_int == 0 && it <= itf){
+    //     std::string population_file_name = "population_it" + std::to_string(it) + ".txt";
+    //     if (rank_ == 0 && omp_get_thread_num() == 0) cout << "\nPRINTING POPULATION IN ITERATION " << it << "\n\n";
+    //     #pragma omp master
+    //     {
+    //         orderly_printing_population(population_file_name, rank_, nk, Ncv, P0, Unitary);
+    //     }
+
+    // }
+    // // I WROTE THIS ^^ //
 
     
     #pragma omp barrier // sinchronise threads

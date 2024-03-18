@@ -47,7 +47,7 @@ struct trig_coefficients{
 // structure contains which solving methods we have
 struct methods_Diff_Eq{
   bool const_dt_evolution, dynamical_dt_evolution, Taylor;
-  double epsStepAbs;
+  double epsStepAbs, Gap_correction;
   int TaylorOrder;
   bool PrintPopulation;
   double start_print_time, end_print_time, step_print;
@@ -79,10 +79,6 @@ struct Private_omp_parameters{
   //
 
 
-  vec3x Dk1;
-  vec3x Dk2;
-  vec3x Dk0;
-
   vec3x P_grad;
   vec2d k;
   vec1d integrWeight;
@@ -96,6 +92,7 @@ struct Private_omp_parameters{
   vec3x Hk_renorm;
   vec1i T_dissip_index_0, T_dissip_index_1; 
   int n_diss_terms;
+  bool Vectorization;
 };
 
 

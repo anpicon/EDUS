@@ -26,20 +26,25 @@ printf("*            Time evolution with TDSE               *\n");
 printf("*****************************************************\n");    //for(int it=0;(it)<=(10);it++)
 
 double tf;
-if(pulse1.gaussian) tf = ncyc*pulse1.sigma;
-else          tf = pulse1.ncycle*pulse1.Period;
+if(Laser_pumps[0].gaussian) tf = ncyc*Laser_pumps[0].sigma;
+else          tf = Laser_pumps[0].ncycle *Laser_pumps[0].Period;
 
 
 int nstep = int(tf/dt) ;
 int iti = 0;
 int itfi=nstep;
 
-
-if (Nb[0] != 0 && T[0][0] != 0)
-{
-    iti   = int(-5.*time_fs_au/dt);
-    itfi = int(tf/dt) + int(50*time_fs_au/dt);
+int cnt=0;
+if (t_fin > 0){
+    itfi = t_fin / dt; 
+} else {
+    t_fin = itfi*dt;
 }
+double dt0 = dt;
+
+
+
+
 if(kptread)     itfi = int(tf/dt) + int(100*time_fs_au/dt);
 
 printf("Number of steps: %3d \nFinal time: %5.2f\n", nstep, tf);

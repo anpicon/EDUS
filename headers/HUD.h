@@ -4,6 +4,7 @@ Crystal CYModel;
 
 void gHUD(vec2x& H,vec2x& U,vec3x& D, Coord_B& k,string& iMode)
 {
+
     if(iMode=="CY"){
         CYModel.energy_U(H,U,k);
         CYModel.dipole(D,k);

@@ -1,8 +1,15 @@
-void BZ_parameters(vec1i& Nk,vec1d& dk, Laser& pulse1, Laser& pulse2, vec2d& b,vec2d& kpt, bool& kptread, int& nTAk, vec2d& TAkpt, vec1i& tagTAk)
+void BZ_parameters(vec1i& Nk,vec1d& dk, vector<Laser> & Laser_pumps, Laser& pulse2, vec2d& b,vec2d& kpt, bool& kptread, int& nTAk, vec2d& TAkpt, vec1i& tagTAk)
 {
     Coord_B::set_crys_to_cart(b);
-    pulse1.set_pol(pulse1.pol1.cart[0], pulse1.pol1.cart[1], pulse1.pol1.cart[2], pulse1.pol2.cart[0], pulse1.pol2.cart[1], pulse1.pol2.cart[2]);
-    pulse2.set_pol(pulse2.pol1.cart[0], pulse2.pol1.cart[1], pulse2.pol1.cart[2], pulse2.pol2.cart[0], pulse2.pol2.cart[1], pulse2.pol2.cart[2]);
+    for(int i_pump = 0; i_pump < Laser_pumps.size(); i_pump++){ // sum over all pump pulses
+        Laser_pumps[i_pump].set_pol(Laser_pumps[i_pump].pol1.cart[0], Laser_pumps[i_pump].pol1.cart[1], 
+            Laser_pumps[i_pump].pol1.cart[2], Laser_pumps[i_pump].pol2.cart[0], 
+            Laser_pumps[i_pump].pol2.cart[1], Laser_pumps[i_pump].pol2.cart[2]);
+    }
+    pulse2.set_pol(pulse2.pol1.cart[0], pulse2.pol1.cart[1], 
+        pulse2.pol1.cart[2], pulse2.pol2.cart[0], 
+        pulse2.pol2.cart[1], pulse2.pol2.cart[2]);
+    
     int nk = Nk[0]*Nk[1]*Nk[2];
     for(int coor=0; coor<3; coor++)
         dk[coor] = 1./Nk[coor];
@@ -87,7 +94,7 @@ void Print_Input
    vec1i& Nk, vec1d& dk,          //k space
    vec1i& Nb,  //bands
     //int& Nc, int& Nv, int& Nch,              //bands
-   Laser& pulse1, Laser& pulse2, double& DELAY,//Coord_B& u1, Coord_B& u2, bool& gaussian1, bool& gaussian2, double& sigma1, double& sigma2, double& DELAY,//lasers
+   vector<Laser> & Laser_pumps, Laser& pulse2, double& DELAY,//Coord_B& u1, Coord_B& u2, bool& gaussian1, bool& gaussian2, double& sigma1, double& sigma2, double& DELAY,//lasers
    string& iMode, string& TBtype, double& dt,  //tdse options
    bool& iWFDs, bool& iCurrent, bool& iTAbs, bool& iTAbsK,    //observables
    double& T1, double& T2, double& Tch,
@@ -95,6 +102,7 @@ void Print_Input
    double& FermiE
    )
 {
+
     if (rank_ == 0){
       printf("Calculation ready to start.\n\n");
           printf("\n*********************************************************************************************\n");
@@ -141,18 +149,18 @@ void Print_Input
           printf(  "*********************************************************************************************\n");  
           string title = "*                   Optical/IR laser parameters - Pump:                                     *\n*********************************************************************************************";
     
-        pulse1.print_par( title );
+        Laser_pumps[0].print_par( title );
     }
            
-      if(pulse1.gaussian == true and (rank_ == 0))
+      if(Laser_pumps[0].gaussian == true and (rank_ == 0))
       {
-          printf(  "*  Gaussian profile: Sigma(fs):%22s%8.2f%31s*\n", " ",pulse1.sigma*time_au_fs, " "                       );
-          printf(  "*  FWHM(fs):                   %22s%8.2f%31s*\n", " ",2.0*sqrt(2.0*log(2.0))*pulse1.sigma*time_au_fs, " ");
-          printf(  "*  FWHM Intensity(fs):         %22s%8.2f%31s*\n", " ",2.0*sqrt(log(2.0))*pulse1.sigma*time_au_fs, " "    );
+          printf(  "*  Gaussian profile: Sigma(fs):%22s%8.2f%31s*\n", " ",Laser_pumps[0].sigma*time_au_fs, " "                       );
+          printf(  "*  FWHM(fs):                   %22s%8.2f%31s*\n", " ",2.0*sqrt(2.0*log(2.0))*Laser_pumps[0].sigma*time_au_fs, " ");
+          printf(  "*  FWHM Intensity(fs):         %22s%8.2f%31s*\n", " ",2.0*sqrt(log(2.0))*Laser_pumps[0].sigma*time_au_fs, " "    );
       }
       else if(rank_ == 0)
       {
-          printf(  "*  sin2 profile:     number of cycles:               %8.2f                               *\n", pulse1.ncycle                       );
+          printf(  "*  sin2 profile:     number of cycles:               %8.2f                               *\n", Laser_pumps[0].ncycle                       );
       }
      if(rank_ == 0){
               //printf(  "*  Polarization in cartesian coordinates:%9s(%5.2f, %5.2f, %5.2f)%21s*\n"," ", u1.cart[0],u1.cart[1],u1.cart[2], " ");

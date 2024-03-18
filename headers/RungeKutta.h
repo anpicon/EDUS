@@ -13,7 +13,7 @@ void get_derivative_Df(
     vector<vector<vector<int>>>& GradientIndex, 
     vector<double>& Weigths, 
     vector<vector<vector<double>>>& Bvector, 
-    int root_rank, int my_rank, vector<Message>& message)
+    int root_rank, int my_rank, bool E_non0)
 {
 
     int Ncv=P.n2();
@@ -22,35 +22,7 @@ void get_derivative_Df(
     
     OMP_private.P_grad.fill(0.0); // variable to store gradient
 
-    // electric field modulus:
-    double Emax = 0; // all components of field. We need it to know, if we need this field
-    for (int iE_1 = 0; iE_1 < 2; iE_1++){
-        for (int iE_2 = 0; iE_2 < 3; iE_2++){
-            Emax += EF[iE_1][iE_2]*EF[iE_1][iE_2];
-        }
-    }
-    Emax = sqrt(Emax); 
-    double E_eps = 1e-20; // we suppose it's zero electric field
 
-    
-    // check if we have negative in conduction
-    // for (int ik = OMP_private.begin_count; ik < OMP_private.end_count; ik++){ // all local wave vectors
-    //     int ik_pr = ik - OMP_private.begin_count;
-
-    //     get_P_in_dia_vect(P,  OMP_private.Uk, OMP_private.P_diag, Ncv, 
-    //                 ik, ik_pr, OMP_private);
-        
-    //     // if (real(OMP_private.P_diag[ik][Ncv-1][Ncv-1]) < 0){ // if negative - reset to equilibrium
-    //     //     for(int ic=0; ic<Ncv; ic++){
-    //     //         for(int jc=0; jc<Ncv; jc++){
-    //     //             OMP_private.P_diag[ik][ic][jc] = OMP_private.P_static[ik_pr][ic][jc];
-    //     //             P[ik][ic][jc] = OMP_private.P0[ik_pr][ic][jc];
-    //     //         }
-    //     //     }
-
-    //     // }
-
-    // }
 
     vec2x Hk(Ncv, Ncv); // temporary container for Hamiltonian
 
@@ -72,58 +44,8 @@ void get_derivative_Df(
                 get_P_in_dia_vect(P,  OMP_private.Uk, OMP_private.P_diag, Ncv, 
                     ik, ik_pr, OMP_private);
 
-                // shared variable to calculate derivatives:
-                // for (int ic=0; ic<Ncv; ic++){
-                //     Coulomb_set.P0_dia[ik][ic][ic] = real(OMP_private.P_diag[ik][ic][ic]);
-                //     if (ic < (Ncv-1)){
-                //         Coulomb_set.P0_dia[ik][ic][ic] -= 1;
-                //     }
-                //     for (int jc=(ic+1); jc<Ncv; jc++){
-                //         Coulomb_set.P0_dia[ik][ic][jc] = OMP_private.P_diag[ik][ic][jc];// - OMP_private.P_static[ik_pr][ic][jc];
-                //         Coulomb_set.P0_dia[ik][jc][ic] = conj(OMP_private.P_diag[ik][ic][jc]); 
-                        // double scale = pow(10,16);
-                        // Coulomb_set.P0_dia[ik][ic][jc] = round(real(Coulomb_set.P0_dia[ik][ic][jc]) * scale)/scale + 1i * round(imag(Coulomb_set.P0_dia[ik][ic][jc]) * scale)/scale   ;
-                    // }
-                // }
-
-
             } // k loop
-            
-            // // send the borders of P0_dia to calculate derivatives
-            // #pragma omp barrier
-            // #pragma omp master
-            // { // shared variables, only master change it
-            //     MPI_Barrier(MPI_COMM_WORLD);
-            //     Mpi_communication(Coulomb_set.P0_dia,  message);
-            //     MPI_Barrier(MPI_COMM_WORLD);
-            // }
-            // #pragma omp barrier
-
-            // // derivatives in k of Coulomb_set.P0_dia
-            // // writes d/dky to the first argument, d/dkx to the second
-            // get_dkx_dky( Coulomb_set.P_dky, Coulomb_set.P_dkx, 
-            //     Coulomb_set.P0_dia, Coulomb_set, OMP_private);
-
-            // // send the borders of P_dky, P_dkx to calculate second derivatives
-            // #pragma omp barrier
-            // #pragma omp master
-            // { // shared variables, only master change it
-            //     MPI_Barrier(MPI_COMM_WORLD);
-            //     Mpi_communication(Coulomb_set.P_dky,  message);
-            //     Mpi_communication(Coulomb_set.P_dkx,  message);
-            //     MPI_Barrier(MPI_COMM_WORLD);
-            // }
-            // #pragma omp barrier
-
-            // // derivatives in k of Coulomb_set.P_dky
-            // // writes d/dky to the first argument, d/dkx to the second
-            // get_dkx_dky( Coulomb_set.P_d2ky, Coulomb_set.P_dky_dkx, 
-            //     Coulomb_set.P_dky, Coulomb_set, OMP_private);
-
-            // // derivatives in d/dkx  of Coulomb_set.P_dkx
-            // get_dkx( Coulomb_set.P_d2kx, 
-            //     Coulomb_set.P_dkx, Coulomb_set, OMP_private);
-
+          
 
  
             Calculate_X_coefficients_MPI(OMP_private.P_diag, OMP_private,  
@@ -333,7 +255,7 @@ void get_derivative_Df(
         
 
         //-------- GRADIENT ----------//
-        if (Emax > E_eps)
+        if (E_non0)
         { // we don't have gradient term when field EF is close to 0
             for (int ic=0; ic<Ncv; ic++)
             {
@@ -386,11 +308,19 @@ void Runge_Kutta_Ad(vec3x& P0,vec3x& P1,vec3x& Pv,
         ik_pr = ik - OMP_private.begin_count;
         for (int ic=0; ic<Ncv; ic++)
         {
-            #pragma omp simd  //#pragma ivdep
-            for (int jc=0; jc<Ncv; jc++)
-            {
-                P1[ik][ic][jc] = P0[ik][ic][jc] + Pv[ik_pr][ic][jc]*dt;
-            }//End jc
+            if (OMP_private.Vectorization){
+                #pragma omp simd  //#pragma ivdep
+                for (int jc=0; jc<Ncv; jc++)
+                {
+                    P1[ik][ic][jc] = P0[ik][ic][jc] + Pv[ik_pr][ic][jc]*dt;
+                }//End jc
+            } else {
+                for (int jc=0; jc<Ncv; jc++)
+                {
+                    P1[ik][ic][jc] = P0[ik][ic][jc] + Pv[ik_pr][ic][jc]*dt;
+                }//End jc
+            }
+
         }//End ic
     }// End iky
     #pragma omp barrier
@@ -407,11 +337,17 @@ void Runge_Kutta_Ac(vec3x& P0,vec3x& Pv,
         ik_pr = ik - OMP_private.begin_count;
         for (int ic=0; ic<P0.n2(); ic++)
         {
+            if (OMP_private.Vectorization){
                 #pragma omp simd //#pragma ivdep
                 for (int jc=0; jc<P0.n2(); jc++)
                 {
                     P0[ik][ic][jc]+= Pv[ik_pr][ic][jc]*dt;
                 }//End jc
+            } else {
+                for (int jc=0; jc<P0.n2(); jc++){
+                    P0[ik][ic][jc]+= Pv[ik_pr][ic][jc]*dt;
+                }//End jc
+            }
         }//End ic
     }// End ikz
     #pragma omp barrier

@@ -131,7 +131,51 @@ void Print_vec3x_MPI(vec3x& P, int ic, int jc,  double& time,
 
 
 
+void PrintEF(ofstream& fp_E, double& time, vector<vec1d>& EF)
+{
+    fp_E <<  setw(15) << setprecision(8)<< time*time_au_fs;
+    fp_E <<  setw(15) << setprecision(8)<< EF[0][0];
+    fp_E <<  setw(15) << setprecision(8)<< EF[0][1];
+    fp_E <<  setw(15) << setprecision(8)<< EF[0][2] << endl;
+}
 
+
+
+
+// Old functions don't use it now
+void CalculateLosses(int& nk, vec1d& sumNcv, int& Nch, int Ncc,
+    vec3x& P0,double& time,vec3x& U,  double &  P_cond_max_loc_mpi)
+{   
+    P_cond_max_loc_mpi = 0.0;
+    int Ncv = P0.n2();
+    sumNcv.fill(0.);
+
+    for (int ik=0; ik<nk; ik++)
+    {
+
+        for (int ic=0; ic<Nch; ic++)
+              sumNcv[ic]+=1.-abs(P0[ik][ic][ic]);
+
+        for (int ic=Nch; ic<P0.n2(); ic++)
+        {
+            complex<double> sum=0.;
+            for (int ii=Nch; ii<P0.n2(); ii++)
+                for (int jj=Nch; jj<P0.n2(); jj++)
+                    sum+=conj(U[ik][ic][ii])*P0[ik][ii][jj]*U[ik][ic][jj]; 
+
+                    
+
+            if(ic<Ncc) sum=1.-sum;//with4 this line we consider holes in the ic-th band       
+            
+            if (abs(sum) > P_cond_max_loc_mpi){
+                P_cond_max_loc_mpi = abs(sum);
+            }       
+            
+            // find maximum
+            sumNcv[ic]+= abs(sum);//We sum over all the k points. sum is for a particular k, sumNcv sum it.
+        }//End ic
+    }// End ik
+}
 
 
 
@@ -174,7 +218,7 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
     int Ncv, int& Nch, int Ncc, vec3x& P0,
     Coulomb_parameters& Coulomb_set, Private_omp_parameters& OMP_private,
     trig_coefficients & trig_k, vector<vec1d>&  EF, 
-    int root_rank, int my_rank, bool print_EK, double &  n_cond, 
+    int root_rank, int my_rank, bool print_EK, bool Vectorization, double &  n_cond, 
     double &  P_cond_max_loc_mpi)
 {
 
@@ -191,7 +235,7 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
 
 
     // No need to integrate with good precision here
-    double nktot = Coulomb_set.N_BZ_points_total;
+    double nktot_inv = 1./Coulomb_set.N_BZ_points_total;
 
 
 
@@ -205,9 +249,28 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
         Coulomb_set.P_min = 1.0;
     }
     #pragma omp barrier
+    #pragma omp master 
+    {
+        for (int ic=0; ic < Ncv; ic++){
+            Coulomb_set.N_shared[ic] = 0.0;
+            // Coulomb_set.N_exciton[ic] = 0.0;
+        }
+    }
+
+    // #pragma omp barrier // debug part of code
+    // #pragma omp master
+    // {
+    //     for (int ic=0; ic < Ncv; ic++){
+    //         if (Coulomb_set.N_shared[ic] != 0.0){
+    //             cout << "tread_id=" << omp_get_thread_num() << "  ic =" << ic << " Coulomb_set.N_shared[ic]=" << Coulomb_set.N_shared[ic] << endl;
+    //             Coulomb_set.N_shared[ic] = 0.0;
+    //         }
+    //     }
+    // } 
+
+    #pragma omp barrier
     // Now we have Hk and diagonalize it with armadillo
     // we don't need much precision or control phases here
-
     vec epsilon; // temporary things for armadillo
     cx_mat Uk_arm; // temporary things for armadillo
     cx_mat Hk_arm; // temporary things for armadillo
@@ -251,19 +314,19 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
         // here ik_U is to make function work both in RungeKutta.h and here
         // I also had to introduce Uk_exc so this function can work both in exciton and non-exciton case
         int ik_U = 0;
-        get_P_in_dia_vect(P0, Uk_exc, OMP_private.P_eigen, Ncv,  
-            ik, ik_U, OMP_private);
 
-        // P_k_offdia[Ncv-1] += abs(OMP_private.P_eigen[ik][Ncv-1][Ncv-2]); // valence - conduction exciton
-        // if (Ncv>2) P_k_offdia[Ncv-2] += abs(OMP_private.P_eigen[ik][Ncv-2][Ncv-3]); // core - valence
-        // if (Ncv>2) P_k_offdia[Ncv-3] += abs(OMP_private.P_eigen[ik][Ncv-1][Ncv-3]); // core- conduction
+        if (Vectorization){
+            get_P_in_dia_vect(P0, Uk_exc, OMP_private.P_eigen, Ncv, ik, ik_U, OMP_private);
+        } else{
+            get_P_in_dia(P0, Uk_exc, OMP_private.P_eigen, Ncv, ik, ik_U);
+        }
+
 
         for (int ic=0; ic < Ncv; ic++){
+
             double Pik = real(OMP_private.P_eigen[ik][ic][ic]); 
             
-
-            P_k_dia[ic] += Pik;
-
+            P_k_dia[ic] += Pik; // summaton over bands inside shared 
 
             if (ic < Ncc){
                 if(abs(1.-Pik) > P_cond_max_loc_omp){
@@ -281,17 +344,10 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
                 }
             }
                 
-            // if(Pik < -pow(10, -15) or Pik > (1 + pow(10, -15)) ){
-            //  //   cout << "P diag= "<< Pik <<" band" << ic << " ik="<< ik << endl;
-            // }
         }
     }
     
-    #pragma omp master
-    {
-        Coulomb_set.N_shared.fill(0);
-        Coulomb_set.N_exciton.fill(0);
-    }
+
 
 
     #pragma omp barrier
@@ -305,11 +361,9 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
             Coulomb_set.P_min = P_cond_min_loc_omp;
         }
         
-        // Coulomb_set.N_exciton[Ncv-1] += P_k_offdia[Ncv-1]/nktot;
-        // if (Ncv>2) Coulomb_set.N_exciton[Ncv-2] += P_k_offdia[Ncv-2]/nktot;
-        // if (Ncv>2) Coulomb_set.N_exciton[Ncv-3] += P_k_offdia[Ncv-2]/nktot;
         for (int ic=0; ic < Ncv; ic++){
-            Coulomb_set.N_shared[ic] += P_k_dia[ic]/nktot;
+            P_k_dia[ic] *=nktot_inv;
+            Coulomb_set.N_shared[ic] += P_k_dia[ic];
         }
     }
 
@@ -396,15 +450,11 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
                     if (rank_ == i_proc){ // send
                         // destination - 0
                         MPI_Send(&Nk_node, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-                        // cout << "0" << endl;
                     }
                     if (rank_ == 0){ // receive
                         // source - process number i_proc
-                        // cout << "Nk_node old" << Nk_node << endl;
                         MPI_Recv(&Nk_node, 1, MPI_INT, i_proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                         Ek_receive.resize(Nk_node, Ncv);
-                        // cout << "1" << endl;
-                        // cout << "Nk_node new" << Nk_node << endl;
                     }
 
                     
@@ -412,14 +462,11 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
                     if (rank_ == i_proc){ // send array
                         // destination - 0
                         MPI_Send(& Coulomb_set.Ekdia[0][0], Nk_node*Ncv, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-                        // cout << "2" << endl;
                     }
                     if (rank_ == 0){ // receive
                         // source - process number i_proc
                         MPI_Recv(& Ek_receive[0][0], Nk_node*Ncv, MPI_DOUBLE, i_proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        // cout << "3" << endl;
                         Ek_print = & Ek_receive;
-                        // cout << "4" << endl;
                     }
                 } // if (i_proc > 0)
                  
@@ -509,6 +556,20 @@ void print_k_MPI(vec2d& kpt, int Nk_node) // print k- grid
 
 }
 
+
+
+
+void CalculateTransientAbs(int& nk,vec1x& a,vec3x& P, double& time, vec1d& EFx,  vec1d& dk, int& Nch,double detM, vec4x& Dk)
+{
+    a.fill(0.);
+    for( int ik = 0; ik <nk; ik++ )
+        for (int ic=0; ic<Nch; ic++) 
+            for (int jc=Nch; jc<P.n2(); jc++) 
+                for(int ix=0; ix<3; ix++)
+                    a[ix] -= 2.*Dk[ik][ic][jc][ix]*P[ik][ic][jc];
+    for(int ix=0; ix<3; ix++)
+        a[ix] *= abs(detM)*dk[0]*dk[1]*dk[2]; 
+}
 
 
 
@@ -604,5 +665,116 @@ void Create_sorted_indices_k_MPI(vec2d& kpt, methods_Diff_Eq &Diff_Eq){
 
 
 
+
+
+//det_a - determinant UC area
+void Current1(ofstream& fp_J1, Private_omp_parameters& OMP_private,
+    vec3x& P,vec4x& GradientEnergy,double& time, vec1d& dk,
+    int& nktot,double det_a, vec1x& I)
+{
+    #pragma omp master
+    {
+        I.fill(0.);
+    }
+    #pragma omp barrier
+    int ik;
+    vec1x Ipriv(3); Ipriv.fill(0.);
+    for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++)
+    {
+        ik = ik_pr + OMP_private.begin_count;
+        for( int ic = 0; ic < P.n2(); ic++ )
+            for ( int jc = 0; jc < P.n2(); jc++ )
+                for (int ix=0; ix<3; ix++)
+                    Ipriv[ix]+=P[ik][ic][jc]*GradientEnergy[ik][ic][jc][ix];
+    }
+    #pragma omp barrier
+    #pragma omp critical
+    { // summation over threads
+        for (int ix=0; ix<3; ix++){
+            I[ix] += Ipriv[ix];
+        }
+    }
+    #pragma omp barrier
+    #pragma omp master
+    {
+        for (int ix=0; ix<3; ix++)
+            I[ix] *= (dk[0]*dk[1]*dk[2]/det_a);
+        
+        vec1x global_sum(3);
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Reduce(&I[0], &global_sum[0], 3, MPI_C_DOUBLE_COMPLEX, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(rank_==0)
+        {
+            fp_J1 << setw(15) << setprecision(8) << time*time_au_fs;
+            for(int ix=0; ix<3; ix++)
+            {
+                fp_J1 << setw(25) << setprecision(15) << scientific << global_sum[ix].real();
+                fp_J1 << setw(25) << setprecision(15) << scientific << global_sum[ix].imag();
+            }
+            fp_J1 << endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+    #pragma omp barrier
+}
+
+
+
+
+
+
+
+void Current2(ofstream& fp_J2, Private_omp_parameters& OMP_private,
+    vec3x& P,vec4x& Dipole,vec3x& Hamiltonian,
+    double& time, vec1d& dk,int& nktot,double det_a, vec1x& I)
+{
+    #pragma omp master
+    {
+        I.fill(0.);
+    }
+    int ik;
+    vec1x Ipriv(3); Ipriv.fill(0.);
+    #pragma omp barrier
+    for (int ik_pr = 0; ik_pr < OMP_private.lenght_k; ik_pr++)
+    {
+        ik = ik_pr + OMP_private.begin_count;
+        for( int ic = 0; ic < P.n2(); ic++ )
+            for ( int jc = 0; jc < P.n2(); jc++ )
+                for ( int kc = 0; kc < P.n2(); kc++ )
+                    for (int ix=0; ix<3; ix++)
+                        Ipriv[ix]+=P[ik][ic][jc]*Hamiltonian[ik][ic][kc]*conj(Dipole[ik][jc][kc][ix]);
+    }
+    #pragma omp barrier
+    #pragma omp critical
+    { // summation over threads
+        for (int ix=0; ix<3; ix++){
+            I[ix] += Ipriv[ix];
+        }
+    }
+    #pragma omp barrier
+    #pragma omp master
+    {
+        for (int ix=0; ix<3; ix++)
+            I[ix] *= (dk[0]*dk[1]*dk[2]/det_a);
+        
+        vec1x global_sum(3);
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Reduce(&I[0], &global_sum[0], 3, MPI_C_DOUBLE_COMPLEX, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(rank_==0)
+        {
+            fp_J2 << setw(15) << setprecision(8) << time*time_au_fs;
+            for(int ix=0; ix<3; ix++)
+            {
+                fp_J2 << setw(25) << setprecision(15) << scientific << -2.*global_sum[ix].imag();
+            }
+            fp_J2 << endl;
+        }
+    }
+    #pragma omp barrier
+}
 
 

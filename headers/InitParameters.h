@@ -147,40 +147,39 @@ void Print_Input
           printf(  "*   Dissipation factor T2:      %3.3fa.u.     -     %3.3feV                                 *\n", T2, T2/energy_eV_au);
           printf(  "*   Decay core-hole factor Tch: %3.3fa.u.     -     %3.3feV                                 *\n", Tch,Tch/energy_eV_au);
           printf(  "*********************************************************************************************\n");  
-          string title = "*                   Optical/IR laser parameters - Pump:                                     *\n*********************************************************************************************";
-    
-        Laser_pumps[0].print_par( title );
+
     }
-           
-      if(Laser_pumps[0].gaussian == true and (rank_ == 0))
-      {
-          printf(  "*  Gaussian profile: Sigma(fs):%22s%8.2f%31s*\n", " ",Laser_pumps[0].sigma*time_au_fs, " "                       );
-          printf(  "*  FWHM(fs):                   %22s%8.2f%31s*\n", " ",2.0*sqrt(2.0*log(2.0))*Laser_pumps[0].sigma*time_au_fs, " ");
-          printf(  "*  FWHM Intensity(fs):         %22s%8.2f%31s*\n", " ",2.0*sqrt(log(2.0))*Laser_pumps[0].sigma*time_au_fs, " "    );
-      }
-      else if(rank_ == 0)
-      {
-          printf(  "*  sin2 profile:     number of cycles:               %8.2f                               *\n", Laser_pumps[0].ncycle                       );
-      }
-     if(rank_ == 0){
-              //printf(  "*  Polarization in cartesian coordinates:%9s(%5.2f, %5.2f, %5.2f)%21s*\n"," ", u1.cart[0],u1.cart[1],u1.cart[2], " ");
-              //printf(  "*  Polarization in crystal coordinates:  %9s(%5.2f, %5.2f, %5.2f)%21s*\n"," ", u1.crys[0],u1.crys[1],u1.crys[2], " ");
-              printf(  "*********************************************************************************************\n");  
-              string title = "*                         XUV laser parameters - Probe:                                     *\n*********************************************************************************************";
-                pulse2.print_par(title);
-          if(pulse2.gaussian == true and (rank_ == 0))
-          {
-              printf(  "*  Gaussian profile: Sigma(fs):%22s%8.2f%31s*\n", " ",pulse2.sigma*time_au_fs, " "                       );
-              printf(  "*  FWHM(fs):                   %22s%8.2f%31s*\n", " ",2.0*sqrt(2.0*log(2.0))*pulse2.sigma*time_au_fs, " ");
-              printf(  "*  FWHM Intensity(fs):         %22s%8.2f%31s*\n", " ",2.0*sqrt(log(2.0))*pulse2.sigma*time_au_fs, " "    );
-          }
-          else
-          {
-              printf(  "*  sin2 profile:     number of cycles:               %8.2f                               *\n", pulse2.ncycle                       );
-          }
-              //printf(  "*  Polarization in cartesian coordinates:         (%5.2f, %5.2f, %5.2f)%21s*\n",u2.cart[0],u2.cart[1],u2.cart[2], " ");
-              //printf(  "*  Polarization in crystal coordinates:           (%5.2f, %5.2f, %5.2f)%21s*\n",u2.crys[0],u2.crys[1],u2.crys[2], " ");
-              printf(  "*  Delay time:                                %8.2f au - %8.2f fs%21s*\n",DELAY, DELAY*time_au_fs, " ");
+    if (rank_ == 0){
+        
+        for(int i_pump = 0; i_pump < Laser_pumps.size(); i_pump++){ // sum over all pump pulses
+            string title = "*                   Optical/IR laser parameters - Pump:                                     *\n*********************************************************************************************";
+            Laser_pumps[i_pump].print_par( title );
+            if(Laser_pumps[i_pump].gaussian == true and (rank_ == i_pump)) {
+                printf(  "*  Gaussian profile: Sigma(fs):%22s%8.2f%31s*\n", " ",Laser_pumps[i_pump].sigma*time_au_fs, " "                       );
+                printf(  "*  FWHM(fs):                   %22s%8.2f%31s*\n", " ",2.0*sqrt(2.0*log(2.0))*Laser_pumps[i_pump].sigma*time_au_fs, " ");
+                printf(  "*  FWHM Intensity(fs):         %22s%8.2f%31s*\n", " ",2.0*sqrt(log(2.0))*Laser_pumps[i_pump].sigma*time_au_fs, " "    );
+            }
+            else {
+                printf(  "*  sin2 profile:     number of cycles:               %8.2f                               *\n", Laser_pumps[i_pump].ncycle                       );
+            }
+
+            //printf(  "*  Polarization in cartesian coordinates:%9s(%5.2f, %5.2f, %5.2f)%21s*\n"," ", u1.cart[0],u1.cart[1],u1.cart[2], " ");
+            //printf(  "*  Polarization in crystal coordinates:  %9s(%5.2f, %5.2f, %5.2f)%21s*\n"," ", u1.crys[0],u1.crys[1],u1.crys[2], " ");
+            printf(  "*********************************************************************************************\n");  
+        }
+        string title = "*                         XUV laser parameters - Probe:                                     *\n*********************************************************************************************";
+        pulse2.print_par(title);
+        if(pulse2.gaussian == true) {
+            printf(  "*  Gaussian profile: Sigma(fs):%22s%8.2f%31s*\n", " ",pulse2.sigma*time_au_fs, " "                       );
+            printf(  "*  FWHM(fs):                   %22s%8.2f%31s*\n", " ",2.0*sqrt(2.0*log(2.0))*pulse2.sigma*time_au_fs, " ");
+            printf(  "*  FWHM Intensity(fs):         %22s%8.2f%31s*\n", " ",2.0*sqrt(log(2.0))*pulse2.sigma*time_au_fs, " "    );
+        }
+        else{
+            printf(  "*  sin2 profile:     number of cycles:               %8.2f                               *\n", pulse2.ncycle                       );
+        }
+        //printf(  "*  Polarization in cartesian coordinates:         (%5.2f, %5.2f, %5.2f)%21s*\n",u2.cart[0],u2.cart[1],u2.cart[2], " ");
+        //printf(  "*  Polarization in crystal coordinates:           (%5.2f, %5.2f, %5.2f)%21s*\n",u2.crys[0],u2.crys[1],u2.crys[2], " ");
+        printf(  "*  Delay time:                                %8.2f au - %8.2f fs%21s*\n",DELAY, DELAY*time_au_fs, " ");
     }
 
       if(iTAbsK and (rank_ == 0))

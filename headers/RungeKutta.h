@@ -5,7 +5,7 @@
 // changed the name of function
 // to get more meaningful names
 void get_derivative_Df(
-    vec2d& kpt, vec3x& P,vec3x& Pv,vec2d& T,
+    vec3x& P,vec3x& Pv,vec2d& T,
     vec1i& Nb,vector<vec1d>&  EF, double wx2, 
     Coulomb_parameters& Coulomb_set, 
     trig_coefficients & trig_k, 

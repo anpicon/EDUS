@@ -29,7 +29,7 @@ for(int i_pump = 0; i_pump < Laser_pumps.size(); i_pump++){ // sum over all pump
 }
 EF_pr[1] = .5*pulse2.E(time_RK);
 
-get_derivative_Df(kpt, P0, OMP_private.Pv, T, Nb, 
+get_derivative_Df( P0, OMP_private.Pv, T, Nb, 
     EF_pr, pulse2.wl, 
     Coulomb_set, trig_k_omp, OMP_private,
     GradientIndex, Weigths, Bvector, 
@@ -61,7 +61,7 @@ for(int i_pump = 0; i_pump < Laser_pumps.size(); i_pump++){ // sum over all pump
 EF_pr[1] = .5*pulse2.E(time_RK);
 
 
-get_derivative_Df(kpt, P2, OMP_private.Pv, T, Nb,
+get_derivative_Df( P2, OMP_private.Pv, T, Nb,
     EF_pr, pulse2.wl, 
     Coulomb_set, trig_k_omp, OMP_private,
     GradientIndex, Weigths, Bvector, 
@@ -95,7 +95,7 @@ Runge_Kutta_Ad(P0,P2,OMP_private.Pv,dt2,OMP_private);
 }
 #pragma omp barrier
 
-get_derivative_Df(kpt, P2, OMP_private.Pv, T, Nb,
+get_derivative_Df( P2, OMP_private.Pv, T, Nb,
     EF_pr, pulse2.wl, 
     Coulomb_set, trig_k_omp, OMP_private,
     GradientIndex, Weigths, Bvector, 
@@ -127,7 +127,7 @@ for(int i_pump = 0; i_pump < Laser_pumps.size(); i_pump++){ // sum over all pump
 }
 EF_pr[1] = .5*pulse2.E(time_RK);
 
-get_derivative_Df(kpt, P2, OMP_private.Pv, T, Nb,
+get_derivative_Df(P2, OMP_private.Pv, T, Nb,
     EF_pr, pulse2.wl, 
     Coulomb_set, trig_k_omp, OMP_private,
     GradientIndex, Weigths, Bvector, 

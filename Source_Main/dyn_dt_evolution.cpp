@@ -167,6 +167,7 @@ while(time_loop < t_fin){
             cout  << " max_dP = " << max_dP << " epsStep =" << epsStepAbs  <<  " time_loop fs: " << time_loop *time_au_fs <<   endl;
             cout <<  " P_cond_max " << P_cond_max << endl;
             cout <<  " n_cond " << n_cond << endl;
+            if (OMP_private.Pk_min < -1e-13)  cout << "Negative population, P_min = " << OMP_private.Pk_min << endl;
         }
 
 

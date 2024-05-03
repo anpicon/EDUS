@@ -58,14 +58,14 @@ and etc.
 So for example if we want something in the current moment 0, 
 we have to addres the element with index derivatIndex[0]
 */
-Taylor_index_shift(derivatIndex, TaylorOrder);
+Multistep_index_shift((derivatIndex[1]), TaylorOrder);
 #pragma omp barrier
 
 
 
 
 
-get_derivative_Df(kpt, P0, OMP_private.Pv, T, Nb, 
+get_derivative_Df(P0, OMP_private.Pv, T, Nb, 
     EF_pr, pulse2.wl, 
     Coulomb_set, trig_k_omp, OMP_private,
     GradientIndex, Weigths, Bvector, 

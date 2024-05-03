@@ -77,8 +77,9 @@
     Diff_Eq.const_dt_evolution = true; // by default
     Diff_Eq.dynamical_dt_evolution = false; // by default
     Diff_Eq.epsStepAbs =  pow(10, -2);
-    Diff_Eq.TaylorOrder = 8;// by default
+    Diff_Eq.SolverOrder = 5;// by default
     Diff_Eq.Taylor= false;// by default
+    Diff_Eq.Adams_Bashforth = false;
     Diff_Eq.PrintPopulation = false;// by default
     Diff_Eq.start_print_time = 0.0; // by default
     Diff_Eq.end_print_time = 100.0* time_au_fs;

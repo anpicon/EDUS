@@ -356,22 +356,26 @@ MPI_Barrier(MPI_COMM_WORLD);
     
     vec2x Delta_P; // need it for Taylor Solver
     
-    vector<vec3x> derivativesMatrices(TaylorOrder + 1); // need it for Taylor Solver
+    vector<vec3x> derivativesMatrices(TaylorOrder + 1); // need it for Taylor Solvers
     vector<vector<int>> derivatIndex(TaylorOrder + 1);  // need it for Taylor Solver
+    vector<int> First_derivatIndex(Diff_Eq.SolverOrder);
+    vector<vec3x> derivativesMultisteps(Diff_Eq.SolverOrder);
+    vec1d Coef_Multistep(Diff_Eq.SolverOrder); // Coefficients for multistep methods 
+                                           // in order: n, n-1, n-2 ...
 
-    
-
-
-    if (Diff_Eq.Taylor){ // if true init matrices for drivatives
+    if (Diff_Eq.Taylor ){ // if true init matrices for drivatives
         init_Taylor_matrices(derivativesMatrices, derivatIndex, 
             TaylorOrder, OMP_private.lenght_k, Ncv);
 
-        Delta_P.resize(OMP_private.lenght_k,  Ncv*Ncv);
         #pragma omp master
         {
             dt_prev.fill(dt); // matrix with previous dt values
         }
-
+    }
+    if (Diff_Eq.Adams_Bashforth){
+        // during the time evolution we don't copy arrays who is (n-i) order, we swap indices
+        init_multistep_storage(derivativesMultisteps, First_derivatIndex, OMP_private.lenght_k, Ncv );
+        init_Adams_Bashforth_coeff(Coef_Multistep, Diff_Eq.SolverOrder);        
     }
 
     if (Diff_Eq.const_dt_evolution){

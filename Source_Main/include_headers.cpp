@@ -37,9 +37,8 @@ using namespace arma;
 #include "InitParameters.h"
 #include "RungeKutta.h"
 #include "CalculateWeigths.h"
-#include "CalculateWeigths_new.h"
 #include "InitialPopulation.h"
-#include "Taylor_solver.h"
+#include "ODE_solver.h"
 #include "Orderly_Printing.h"
 
 #include "Observables_MPI.h"

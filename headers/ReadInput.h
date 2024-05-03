@@ -967,7 +967,15 @@ void Read_Input
                     Laser_pumps.resize(num_pump_pulses);
                   }
                   else if(0 ==strcasecmp(str[0].c_str(), "TaylorOrder") ) {
-                    Diff_Eq.TaylorOrder= atof(str[1].c_str()); 
+                    Diff_Eq.SolverOrder= atof(str[1].c_str()); 
+                  }
+                  else if(0 ==strcasecmp(str[0].c_str(), "Adams_Bashforth") ) {
+                    Diff_Eq.Adams_Bashforth = true;
+                    Diff_Eq.Taylor= false;
+                    if (str.size() > 1) Diff_Eq.SolverOrder= atof(str[1].c_str()); 
+                    if (Diff_Eq.SolverOrder > 5){
+                      Diff_Eq.SolverOrder= 5;
+                    } 
                   }
                   else if(0 ==strcasecmp(str[0].c_str(), "Gap_correction") ) {
                     Diff_Eq.Gap_correction= atof(str[1].c_str()); 

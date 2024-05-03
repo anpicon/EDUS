@@ -380,10 +380,7 @@ void PrintLossesMPI_exciton(ofstream& fp_Loss, double& time,
         MPI_Reduce(&Coulomb_set.P_min, &P_min_MPI, 1, MPI_DOUBLE, MPI_MIN, root_rank,
                MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
-        if ((P_min_MPI < -1e-13) and (rank_ == root_rank))
-        {
-            cout << "Negative population, P_min = " << P_min_MPI << endl;
-        }
+        OMP_private.Pk_min = P_min_MPI;
         
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Reduce(&Coulomb_set.N_shared[0], &P_k_dia_global[0], Ncv, MPI_DOUBLE, MPI_SUM, root_rank,

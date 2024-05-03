@@ -122,14 +122,16 @@ Coulomb_set.N_exciton.resize(Ncv);
 vec2d Displacement_orb(Ncv, 3); // displacements for interaction terms
 
 
-int TaylorOrder = Diff_Eq.TaylorOrder;
+int TaylorOrder = Diff_Eq.SolverOrder;
 
 if(Diff_Eq.Taylor){
     dt_prev.resize(TaylorOrder);
     Coulomb_set.Taylor_Delta_Pk_max.resize(TaylorOrder); // for Taylor solver
     Coulomb_set.Taylor_alpha_max.resize(TaylorOrder); 
     std::cout  << "   Taylot solver of oder   " << TaylorOrder << endl;
-} else{
+} else if(Diff_Eq.Adams_Bashforth){
+    std::cout  << "   Adams-Bashforth solver of order " << Diff_Eq.SolverOrder << endl;
+}else{
     // RK time evolution
     std::cout  << "   Runge Kutta solver " << endl;
 }
